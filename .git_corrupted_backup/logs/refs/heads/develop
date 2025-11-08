@@ -1,0 +1,29 @@
+0000000000000000000000000000000000000000 196b06107b42f09c7678d94cee07be10e53115fc Nitroblack1 <nitroblue@naver.com> 1757472278 +0900	branch: Created from main
+196b06107b42f09c7678d94cee07be10e53115fc 16fb481924c6fa63ee006500bffc482383b66594 Nitroblack1 <nitroblue@naver.com> 1757578593 +0900	commit: svc layer implemented
+16fb481924c6fa63ee006500bffc482383b66594 2f8d6d24162b521ec224e5719c15dcf7226f85f4 Nitroblack1 <nitroblue@naver.com> 1757579358 +0900	commit: svc layer implemented, optimizing
+2f8d6d24162b521ec224e5719c15dcf7226f85f4 3eece81be1d377059b28187f97f71fd9ebb38dcf Nitroblack1 <nitroblue@naver.com> 1757595838 +0900	commit: now_ms() in HeartbeatApp switched to kernel path
+3eece81be1d377059b28187f97f71fd9ebb38dcf 3b490da0bffd0aefddb45e7fc35f19a271a252ac Nitroblack1 <nitroblue@naver.com> 1757596136 +0900	commit: BTN_PRESSED switched to kernel path
+3b490da0bffd0aefddb45e7fc35f19a271a252ac d4152bbbbc086e3b28545904ab63c904621ac93f Nitroblack1 <nitroblue@naver.com> 1757598197 +0900	commit: check svc path works, implement debugging tools
+d4152bbbbc086e3b28545904ab63c904621ac93f e843e217e99fee76c958dc684098a989241d00fc Nitroblack1 <nitroblue@naver.com> 1757599528 +0900	commit: switched every apps from user path to kernel path
+e843e217e99fee76c958dc684098a989241d00fc 2622e1a14c2644ba6f94d2e005c5625d23cf3c01 Nitroblack1 <nitroblue@naver.com> 1757654050 +0900	commit: code optimization
+2622e1a14c2644ba6f94d2e005c5625d23cf3c01 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1757655872 +0900	commit: PSP ready, switch fn implemented
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 3f02a12c77283bde1c320ca31ae8cd2981dec17a Nitroblack1 <nitroblue@naver.com> 1757763204 +0900	commit: btn deleted
+3f02a12c77283bde1c320ca31ae8cd2981dec17a 3feac2ea6ff447a16ee810dac9bd1a14688677f6 Nitroblack1 <nitroblue@naver.com> 1757913176 +0900	commit: transplanted Capsules layer, Privileged object: 'GpioPriv'
+3feac2ea6ff447a16ee810dac9bd1a14688677f6 b61b4a577aed74b8f21ee026d0e75348c384f140 Nitroblack1 <nitroblue@naver.com> 1757914032 +0900	commit: replaced
+b61b4a577aed74b8f21ee026d0e75348c384f140 ad54a5ef9ebc5d31344639fe5cb9eefa90b21dce Nitroblack1 <nitroblue@naver.com> 1757920160 +0900	commit: sched: preemptive RR @50µs with PSP init; PendSV via sym; SysTick #[exception]; align wrapper
+ad54a5ef9ebc5d31344639fe5cb9eefa90b21dce 4f479f10a723771471b60422587d3feafed133bb Nitroblack1 <nitroblue@naver.com> 1757920653 +0900	commit: added global SVC handle, task entry declaration
+4f479f10a723771471b60422587d3feafed133bb 0bd9b70e9f3ce2f9e0cb02623121f598b22b2493 Nitroblack1 <nitroblue@naver.com> 1757922097 +0900	commit: deleted old structures
+0bd9b70e9f3ce2f9e0cb02623121f598b22b2493 758381d4081c8ead53ef1d33adfeca3f0f670c8b Nitroblack1 <nitroblue@naver.com> 1758000402 +0900	commit: main layer optimized
+758381d4081c8ead53ef1d33adfeca3f0f670c8b 236dc34bc4db6b3d24e1865935e90137df0d6eb3 Nitroblack1 <nitroblue@naver.com> 1758000640 +0900	commit: build_initial_psp fn optimized
+236dc34bc4db6b3d24e1865935e90137df0d6eb3 4a425c0c53c3ef21f382177b963757d645ddec23 Nitroblack1 <nitroblue@naver.com> 1758079961 +0900	commit: code optimized
+4a425c0c53c3ef21f382177b963757d645ddec23 31ae00da202bcd84dd1a2b148798ad13002c2e7b Nitroblack1 <nitroblue@naver.com> 1758248691 +0900	commit: erased pin 6... there's no other user LED in stm32f board..
+31ae00da202bcd84dd1a2b148798ad13002c2e7b f86365c2c5c2ca1f16b3e74be16837162b3d12e6 Nitroblack1 <nitroblue@naver.com> 1758255022 +0900	commit: debugging for stack address
+f86365c2c5c2ca1f16b3e74be16837162b3d12e6 9028614038d216818ac7fd8eb81828ebccffadf4 Nitroblack1 <nitroblue@naver.com> 1758263856 +0900	commit: kernel stack structure added, separating Kernel Stack and Application Stack
+9028614038d216818ac7fd8eb81828ebccffadf4 acb256c8a4cd849c20ded53a16711dad84f4a005 Nitroblack1 <nitroblue@naver.com> 1758268568 +0900	commit: implementing schedular, separating PSP for apps from MSP for kernel
+acb256c8a4cd849c20ded53a16711dad84f4a005 840d67e7838183e502b2cdc4928dd9aa9c37e9f0 Nitroblack1 <nitroblue@naver.com> 1758450399 +0900	commit: feat(scheduler): add round-robin scheduler and PendSV context switching
+840d67e7838183e502b2cdc4928dd9aa9c37e9f0 89d04f757de52847324d6d2b267c41ecdf44f573 Nitroblack1 <nitroblue@naver.com> 1758512360 +0900	commit: FP Service removed
+89d04f757de52847324d6d2b267c41ecdf44f573 e4f90b9fa8298348194485e9f372b386d965b04a Nitroblack1 <nitroblue@naver.com> 1758522187 +0900	commit: initial environment setup completedSchedular initialization completedContext switching call -> PendSV Call completedAt PendSV, waiting for interrupt
+e4f90b9fa8298348194485e9f372b386d965b04a 37ea0f46e08f606e5da072fc45689deb767f9a1f Nitroblack1 <nitroblue@naver.com> 1759375933 +0900	commit: start:
+37ea0f46e08f606e5da072fc45689deb767f9a1f a6611312429ad0efdec5039ca1e98974bb3bd601 Nitroblack1 <nitroblue@naver.com> 1759386354 +0900	commit: refactor(os): migrate to FreeRTOS-style RTOS implementation
+a6611312429ad0efdec5039ca1e98974bb3bd601 0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e Nitroblack1 <nitroblue@naver.com> 1759388422 +0900	commit: finding error in task stating
+0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e 7d9b17f15a9e32befa090a06a700f23e4e75a55a Nitroblack1 <nitroblue@naver.com> 1760076212 +0900	commit: RTIC version created

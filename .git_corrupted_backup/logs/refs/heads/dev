@@ -1,0 +1,8 @@
+0000000000000000000000000000000000000000 196b06107b42f09c7678d94cee07be10e53115fc Nitroblack1 <nitroblue@naver.com> 1757472169 +0900	commit (initial): software level implement sucess version
+196b06107b42f09c7678d94cee07be10e53115fc 196b06107b42f09c7678d94cee07be10e53115fc Nitroblack1 <nitroblue@naver.com> 1757472187 +0900	Branch: renamed refs/heads/master to refs/heads/main
+196b06107b42f09c7678d94cee07be10e53115fc 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1757762141 +0900	merge develop: Fast-forward
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 ae32f0165362a78c0750888b25b9f1df21f61aa6 Nitroblack1 <nitroblue@naver.com> 1761114984 +0900	commit: Tock-style, rust based RTOS mini-Kernel, static tasks structures.
+ae32f0165362a78c0750888b25b9f1df21f61aa6 70830195f00ff32caa74e09235f27031f2b9b518 Nitroblack1 <nitroblue@naver.com> 1761115090 +0900	commit: ~
+70830195f00ff32caa74e09235f27031f2b9b518 7f0271d8d17eefe78c125202e6013f550c465956 Nitroblack1 <nitroblue@naver.com> 1761115128 +0900	commit: Tock-style, rust based RTOS mini-Kernel, static tasks structures.
+7f0271d8d17eefe78c125202e6013f550c465956 b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1761116206 +0900	reset: moving to origin/main
+b045c9d358a6509e459407f9a51cf5f44b39b95b b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1762582172 +0900	Branch: renamed refs/heads/main to refs/heads/dev

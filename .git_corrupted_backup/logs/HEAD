@@ -1,0 +1,84 @@
+0000000000000000000000000000000000000000 196b06107b42f09c7678d94cee07be10e53115fc Nitroblack1 <nitroblue@naver.com> 1757472169 +0900	commit (initial): software level implement sucess version
+196b06107b42f09c7678d94cee07be10e53115fc 0000000000000000000000000000000000000000 Nitroblack1 <nitroblue@naver.com> 1757472187 +0900	Branch: renamed refs/heads/master to refs/heads/main
+0000000000000000000000000000000000000000 196b06107b42f09c7678d94cee07be10e53115fc Nitroblack1 <nitroblue@naver.com> 1757472187 +0900	Branch: renamed refs/heads/master to refs/heads/main
+196b06107b42f09c7678d94cee07be10e53115fc 196b06107b42f09c7678d94cee07be10e53115fc Nitroblack1 <nitroblue@naver.com> 1757472282 +0900	checkout: moving from main to develop
+196b06107b42f09c7678d94cee07be10e53115fc 16fb481924c6fa63ee006500bffc482383b66594 Nitroblack1 <nitroblue@naver.com> 1757578593 +0900	commit: svc layer implemented
+16fb481924c6fa63ee006500bffc482383b66594 2f8d6d24162b521ec224e5719c15dcf7226f85f4 Nitroblack1 <nitroblue@naver.com> 1757579358 +0900	commit: svc layer implemented, optimizing
+2f8d6d24162b521ec224e5719c15dcf7226f85f4 3eece81be1d377059b28187f97f71fd9ebb38dcf Nitroblack1 <nitroblue@naver.com> 1757595838 +0900	commit: now_ms() in HeartbeatApp switched to kernel path
+3eece81be1d377059b28187f97f71fd9ebb38dcf 3b490da0bffd0aefddb45e7fc35f19a271a252ac Nitroblack1 <nitroblue@naver.com> 1757596136 +0900	commit: BTN_PRESSED switched to kernel path
+3b490da0bffd0aefddb45e7fc35f19a271a252ac d4152bbbbc086e3b28545904ab63c904621ac93f Nitroblack1 <nitroblue@naver.com> 1757598197 +0900	commit: check svc path works, implement debugging tools
+d4152bbbbc086e3b28545904ab63c904621ac93f e843e217e99fee76c958dc684098a989241d00fc Nitroblack1 <nitroblue@naver.com> 1757599528 +0900	commit: switched every apps from user path to kernel path
+e843e217e99fee76c958dc684098a989241d00fc 2622e1a14c2644ba6f94d2e005c5625d23cf3c01 Nitroblack1 <nitroblue@naver.com> 1757654050 +0900	commit: code optimization
+2622e1a14c2644ba6f94d2e005c5625d23cf3c01 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1757655872 +0900	commit: PSP ready, switch fn implemented
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1757658069 +0900	checkout: moving from develop to develop
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1757658082 +0900	checkout: moving from develop to develop
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 196b06107b42f09c7678d94cee07be10e53115fc Nitroblack1 <nitroblue@naver.com> 1757762089 +0900	checkout: moving from develop to main
+196b06107b42f09c7678d94cee07be10e53115fc 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1757762141 +0900	merge develop: Fast-forward
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1757762157 +0900	checkout: moving from main to develop
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 3f02a12c77283bde1c320ca31ae8cd2981dec17a Nitroblack1 <nitroblue@naver.com> 1757763204 +0900	commit: btn deleted
+3f02a12c77283bde1c320ca31ae8cd2981dec17a 3feac2ea6ff447a16ee810dac9bd1a14688677f6 Nitroblack1 <nitroblue@naver.com> 1757913176 +0900	commit: transplanted Capsules layer, Privileged object: 'GpioPriv'
+3feac2ea6ff447a16ee810dac9bd1a14688677f6 b61b4a577aed74b8f21ee026d0e75348c384f140 Nitroblack1 <nitroblue@naver.com> 1757914032 +0900	commit: replaced
+b61b4a577aed74b8f21ee026d0e75348c384f140 ad54a5ef9ebc5d31344639fe5cb9eefa90b21dce Nitroblack1 <nitroblue@naver.com> 1757920160 +0900	commit: sched: preemptive RR @50µs with PSP init; PendSV via sym; SysTick #[exception]; align wrapper
+ad54a5ef9ebc5d31344639fe5cb9eefa90b21dce 4f479f10a723771471b60422587d3feafed133bb Nitroblack1 <nitroblue@naver.com> 1757920653 +0900	commit: added global SVC handle, task entry declaration
+4f479f10a723771471b60422587d3feafed133bb 0bd9b70e9f3ce2f9e0cb02623121f598b22b2493 Nitroblack1 <nitroblue@naver.com> 1757922097 +0900	commit: deleted old structures
+0bd9b70e9f3ce2f9e0cb02623121f598b22b2493 758381d4081c8ead53ef1d33adfeca3f0f670c8b Nitroblack1 <nitroblue@naver.com> 1758000402 +0900	commit: main layer optimized
+758381d4081c8ead53ef1d33adfeca3f0f670c8b 236dc34bc4db6b3d24e1865935e90137df0d6eb3 Nitroblack1 <nitroblue@naver.com> 1758000640 +0900	commit: build_initial_psp fn optimized
+236dc34bc4db6b3d24e1865935e90137df0d6eb3 4a425c0c53c3ef21f382177b963757d645ddec23 Nitroblack1 <nitroblue@naver.com> 1758079961 +0900	commit: code optimized
+4a425c0c53c3ef21f382177b963757d645ddec23 31ae00da202bcd84dd1a2b148798ad13002c2e7b Nitroblack1 <nitroblue@naver.com> 1758248691 +0900	commit: erased pin 6... there's no other user LED in stm32f board..
+31ae00da202bcd84dd1a2b148798ad13002c2e7b f86365c2c5c2ca1f16b3e74be16837162b3d12e6 Nitroblack1 <nitroblue@naver.com> 1758255022 +0900	commit: debugging for stack address
+f86365c2c5c2ca1f16b3e74be16837162b3d12e6 9028614038d216818ac7fd8eb81828ebccffadf4 Nitroblack1 <nitroblue@naver.com> 1758263856 +0900	commit: kernel stack structure added, separating Kernel Stack and Application Stack
+9028614038d216818ac7fd8eb81828ebccffadf4 acb256c8a4cd849c20ded53a16711dad84f4a005 Nitroblack1 <nitroblue@naver.com> 1758268568 +0900	commit: implementing schedular, separating PSP for apps from MSP for kernel
+acb256c8a4cd849c20ded53a16711dad84f4a005 840d67e7838183e502b2cdc4928dd9aa9c37e9f0 Nitroblack1 <nitroblue@naver.com> 1758450399 +0900	commit: feat(scheduler): add round-robin scheduler and PendSV context switching
+840d67e7838183e502b2cdc4928dd9aa9c37e9f0 89d04f757de52847324d6d2b267c41ecdf44f573 Nitroblack1 <nitroblue@naver.com> 1758512360 +0900	commit: FP Service removed
+89d04f757de52847324d6d2b267c41ecdf44f573 e4f90b9fa8298348194485e9f372b386d965b04a Nitroblack1 <nitroblue@naver.com> 1758522187 +0900	commit: initial environment setup completedSchedular initialization completedContext switching call -> PendSV Call completedAt PendSV, waiting for interrupt
+e4f90b9fa8298348194485e9f372b386d965b04a 37ea0f46e08f606e5da072fc45689deb767f9a1f Nitroblack1 <nitroblue@naver.com> 1759375933 +0900	commit: start:
+37ea0f46e08f606e5da072fc45689deb767f9a1f a6611312429ad0efdec5039ca1e98974bb3bd601 Nitroblack1 <nitroblue@naver.com> 1759386354 +0900	commit: refactor(os): migrate to FreeRTOS-style RTOS implementation
+a6611312429ad0efdec5039ca1e98974bb3bd601 0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e Nitroblack1 <nitroblue@naver.com> 1759388422 +0900	commit: finding error in task stating
+0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e 0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e Nitroblack1 <nitroblue@naver.com> 1759388475 +0900	checkout: moving from develop to sub
+0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e b92c959debbe05e486fb0192d8757c8d4d0b8201 Nitroblack1 <nitroblue@naver.com> 1759389392 +0900	commit: refactoring
+b92c959debbe05e486fb0192d8757c8d4d0b8201 c9eab76d0b9a03f7100f3f8c402a24867331bf44 Nitroblack1 <nitroblue@naver.com> 1759474680 +0900	commit: centext switching practice
+c9eab76d0b9a03f7100f3f8c402a24867331bf44 c9eab76d0b9a03f7100f3f8c402a24867331bf44 Nitroblack1 <nitroblue@naver.com> 1759753387 +0900	checkout: moving from sub to test
+c9eab76d0b9a03f7100f3f8c402a24867331bf44 78dbe6cb9597d6591964df7ae9e56e9880be19e8 Nitroblack1 <nitroblue@naver.com> 1759927102 +0900	commit: test branch
+78dbe6cb9597d6591964df7ae9e56e9880be19e8 0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e Nitroblack1 <nitroblue@naver.com> 1759927112 +0900	checkout: moving from test to develop
+0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e 78dbe6cb9597d6591964df7ae9e56e9880be19e8 Nitroblack1 <nitroblue@naver.com> 1759928616 +0900	checkout: moving from develop to test
+78dbe6cb9597d6591964df7ae9e56e9880be19e8 c8278e7883e296c5a142608d1e88905c1ee64eb0 Nitroblack1 <nitroblue@naver.com> 1759930523 +0900	commit: revisited to privileged/Unprivileged seperated mode
+c8278e7883e296c5a142608d1e88905c1ee64eb0 5573334f9ffa308984be7acdd187d744fcd9edd3 Nitroblack1 <nitroblue@naver.com> 1759984686 +0900	commit: stm32f warning solved
+5573334f9ffa308984be7acdd187d744fcd9edd3 addf81c9aa2cfe0265fc14d91555f6712fa18a1b Nitroblack1 <nitroblue@naver.com> 1760020472 +0900	commit: context switching 1st circulation succeed
+addf81c9aa2cfe0265fc14d91555f6712fa18a1b 76447427d3f9ca0cbfb96fc071544b5cb60fd78d Nitroblack1 <nitroblue@naver.com> 1760021092 +0900	commit: rtt optimized
+76447427d3f9ca0cbfb96fc071544b5cb60fd78d 0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e Nitroblack1 <nitroblue@naver.com> 1760021824 +0900	checkout: moving from test to develop
+0bf1b3bc43a09acd0d533f5ea10130f3e1a9c10e 7d9b17f15a9e32befa090a06a700f23e4e75a55a Nitroblack1 <nitroblue@naver.com> 1760076212 +0900	commit: RTIC version created
+7d9b17f15a9e32befa090a06a700f23e4e75a55a 76447427d3f9ca0cbfb96fc071544b5cb60fd78d Nitroblack1 <nitroblue@naver.com> 1760076361 +0900	checkout: moving from develop to test
+76447427d3f9ca0cbfb96fc071544b5cb60fd78d 93c0a6440b3aed8bb4fcfec4c594c770994962dd Nitroblack1 <nitroblue@naver.com> 1760076740 +0900	commit: simple code optimization
+93c0a6440b3aed8bb4fcfec4c594c770994962dd 40901e2651794fcca23e41f706a17ac13249a3b8 Nitroblack1 <nitroblue@naver.com> 1760078481 +0900	commit: TCB upgraded for context store/restore process
+40901e2651794fcca23e41f706a17ac13249a3b8 c3986418d6eef724d4c52219f9ace7db52df9766 Nitroblack1 <nitroblue@naver.com> 1760105895 +0900	commit: context switching implemented
+c3986418d6eef724d4c52219f9ace7db52df9766 1a4e8b93555ff1ed5ce86eedee3ddd0e29ed4b97 Nitroblack1 <nitroblue@naver.com> 1760108642 +0900	commit: rtt print for each task in a seperated period implemented, proving the context switching is working
+1a4e8b93555ff1ed5ce86eedee3ddd0e29ed4b97 1abc9070d0c36ba4bade28f752251b2ee64a7848 Nitroblack1 <nitroblue@naver.com> 1760510316 +0900	commit: Tock-style, rust based RTOS mini-Kernel, static tasks structures.
+1abc9070d0c36ba4bade28f752251b2ee64a7848 cf15ee31fbc78284abb606c422836cc270125e12 Nitroblack1 <nitroblue@naver.com> 1760602057 +0900	commit: dynamic tasks allocation & scheudling implementing
+cf15ee31fbc78284abb606c422836cc270125e12 f69201ee023043061b0449120add8ab4c8bb3d6a Nitroblack1 <nitroblue@naver.com> 1760613233 +0900	commit: dynamic tasks allocation remodeling
+f69201ee023043061b0449120add8ab4c8bb3d6a c59216a59b61e12f637000fe4b9b7a15c89b3603 Nitroblack1 <nitroblue@naver.com> 1760708960 +0900	commit: dynamic task allocation implementing
+c59216a59b61e12f637000fe4b9b7a15c89b3603 de0926d39c8bd658eea4b42d12ced16e3e5e3f78 Nitroblack1 <nitroblue@naver.com> 1761114680 +0900	commit: dynamic task allocation implementing
+de0926d39c8bd658eea4b42d12ced16e3e5e3f78 60ccf7087d9e1cd1bf7fdb4637f125246910f106 Nitroblack1 <nitroblue@naver.com> 1761114692 +0900	checkout: moving from test to main
+60ccf7087d9e1cd1bf7fdb4637f125246910f106 ae32f0165362a78c0750888b25b9f1df21f61aa6 Nitroblack1 <nitroblue@naver.com> 1761114984 +0900	commit: Tock-style, rust based RTOS mini-Kernel, static tasks structures.
+ae32f0165362a78c0750888b25b9f1df21f61aa6 70830195f00ff32caa74e09235f27031f2b9b518 Nitroblack1 <nitroblue@naver.com> 1761115090 +0900	commit: ~
+70830195f00ff32caa74e09235f27031f2b9b518 7f0271d8d17eefe78c125202e6013f550c465956 Nitroblack1 <nitroblue@naver.com> 1761115128 +0900	commit: Tock-style, rust based RTOS mini-Kernel, static tasks structures.
+7f0271d8d17eefe78c125202e6013f550c465956 de0926d39c8bd658eea4b42d12ced16e3e5e3f78 Nitroblack1 <nitroblue@naver.com> 1761115260 +0900	checkout: moving from main to test
+de0926d39c8bd658eea4b42d12ced16e3e5e3f78 583541a19055e52a16323f89bc7ef0f312b45404 Nitroblack1 <nitroblue@naver.com> 1761115643 +0900	commit: revert to 1abc907
+583541a19055e52a16323f89bc7ef0f312b45404 ba0d0247a53314e715a62f330898671a38b44bf6 Nitroblack1 <nitroblue@naver.com> 1761115752 +0900	commit: ㅠㅠ
+ba0d0247a53314e715a62f330898671a38b44bf6 1ecaa70ffd16dc243b9935c8ef4cda4e61c03bed Nitroblack1 <nitroblue@naver.com> 1761115853 +0900	commit: bb
+1ecaa70ffd16dc243b9935c8ef4cda4e61c03bed 7f0271d8d17eefe78c125202e6013f550c465956 Nitroblack1 <nitroblue@naver.com> 1761115864 +0900	checkout: moving from test to main
+7f0271d8d17eefe78c125202e6013f550c465956 1ecaa70ffd16dc243b9935c8ef4cda4e61c03bed Nitroblack1 <nitroblue@naver.com> 1761115903 +0900	checkout: moving from main to test
+1ecaa70ffd16dc243b9935c8ef4cda4e61c03bed 6ae1e404040a5511920fd5a5da879074cce50887 Nitroblack1 <nitroblue@naver.com> 1761116070 +0900	commit: ~
+6ae1e404040a5511920fd5a5da879074cce50887 7f0271d8d17eefe78c125202e6013f550c465956 Nitroblack1 <nitroblue@naver.com> 1761116073 +0900	checkout: moving from test to main
+7f0271d8d17eefe78c125202e6013f550c465956 b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1761116206 +0900	reset: moving to origin/main
+b045c9d358a6509e459407f9a51cf5f44b39b95b 6ae1e404040a5511920fd5a5da879074cce50887 Nitroblack1 <nitroblue@naver.com> 1761116213 +0900	checkout: moving from main to test
+6ae1e404040a5511920fd5a5da879074cce50887 c59216a59b61e12f637000fe4b9b7a15c89b3603 Nitroblack1 <nitroblue@naver.com> 1761116230 +0900	reset: moving to origin/test
+c59216a59b61e12f637000fe4b9b7a15c89b3603 a3a08879280c871fe3a2039768e88cf8f52b4d9d Nitroblack1 <nitroblue@naver.com> 1761546660 +0900	commit: Compiler + default linker script based task allocation structure
+a3a08879280c871fe3a2039768e88cf8f52b4d9d c2be3bcd9fdb2abd8ffd105e181993be1a045061 Nitroblack1 <nitroblue@naver.com> 1761547689 +0900	commit: code optimization
+c2be3bcd9fdb2abd8ffd105e181993be1a045061 23a711e2c244e636c42e2630b5cba87cfe5c09c8 Nitroblack1 <nitroblue@naver.com> 1761726361 +0900	commit: MPU default setting
+                                                                                                                                                                                                                           ff6e1f275ffd7a1ba681c43f343553329f57c7ac 0000000000000000000000000000000000000000 Nitroblack1 <nitroblue@naver.com> 1762582022 +0900	Branch: renamed refs/heads/test to refs/heads/test
+0000000000000000000000000000000000000000 b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1762582028 +0900	Branch: renamed refs/heads/test to refs/heads/main
+b045c9d358a6509e459407f9a51cf5f44b39b95b 0000000000000000000000000000000000000000 Nitroblack1 <nitroblue@naver.com> 1762582172 +0900	Branch: renamed refs/heads/main to refs/heads/dev
+0000000000000000000000000000000000000000 b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1762582172 +0900	Branch: renamed refs/heads/main to refs/heads/dev
+b045c9d358a6509e459407f9a51cf5f44b39b95b b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1762582177 +0900	checkout: moving from dev to dev
+b045c9d358a6509e459407f9a51cf5f44b39b95b b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1762582512 +0900	checkout: moving from dev to main
+b045c9d358a6509e459407f9a51cf5f44b39b95b 6d0baeff587b2ca2b7b85c0cb039f26154bd77c7 Nitroblack1 <nitroblue@naver.com> 1762582714 +0900	commit: Tock OS-style 'link-time app discovery' system implemented

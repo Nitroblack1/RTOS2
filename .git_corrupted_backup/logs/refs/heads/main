@@ -1,0 +1,2 @@
+0000000000000000000000000000000000000000 b045c9d358a6509e459407f9a51cf5f44b39b95b Nitroblack1 <nitroblue@naver.com> 1762582512 +0900	branch: Created from refs/remotes/origin/main
+b045c9d358a6509e459407f9a51cf5f44b39b95b 6d0baeff587b2ca2b7b85c0cb039f26154bd77c7 Nitroblack1 <nitroblue@naver.com> 1762582714 +0900	commit: Tock OS-style 'link-time app discovery' system implemented
