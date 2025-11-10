@@ -253,7 +253,7 @@ unsafe fn UsageFault() -> ! {
 
 #[cortex_m_rt::exception]
 unsafe fn MemoryManagement() -> ! {
-    rprintln!("[MPU] MemoryManagement fault occurred");
+    rprintln!("[MPU] MemoryManagement fault occurred - memory protection violation detected");
 
     // Read MPU fault status and address
     const SCB_MMFSR: *mut u8 = 0xE000_ED28 as *mut u8; // MemManage Fault Status Register
@@ -269,26 +269,61 @@ unsafe fn MemoryManagement() -> ! {
             0
         };
 
+        rprintln!("[MPU] === MEMORY PROTECTION VIOLATION ANALYSIS ===");
         rprintln!("[MPU] MMFSR: 0x{:02x}, CFSR: 0x{:08x}", mmfsr, cfsr);
+
         if mmfar != 0 {
             rprintln!("[MPU] Fault address: 0x{:08x}", mmfar);
+
+            // Analyze which memory region was violated
+            if mmfar >= 0x08000000 && mmfar < 0x08080000 {
+                rprintln!("[MPU] → Flash memory violation (0x08000000-0x0807FFFF)");
+            } else if mmfar >= 0x20000000 && mmfar < 0x20010000 {
+                rprintln!("[MPU] → Kernel SRAM violation (0x20000000-0x2000FFFF)");
+            } else if mmfar >= 0x20010000 && mmfar < 0x20020000 {
+                rprintln!("[MPU] → Task stack area violation (0x20010000-0x2001FFFF)");
+            } else {
+                rprintln!("[MPU] → Unknown memory region violation");
+            }
         }
 
-        // Decode fault type
-        if (mmfsr & 0x01) != 0 { rprintln!("[MPU] Instruction access violation"); }
-        if (mmfsr & 0x02) != 0 { rprintln!("[MPU] Data access violation"); }
-        if (mmfsr & 0x08) != 0 { rprintln!("[MPU] MemManage fault on unstacking"); }
-        if (mmfsr & 0x10) != 0 { rprintln!("[MPU] MemManage fault on stacking"); }
-        if (mmfsr & 0x20) != 0 { rprintln!("[MPU] MemManage fault on lazy FP state preservation"); }
+        // Decode fault type with detailed explanations
+        if (mmfsr & 0x01) != 0 { rprintln!("[MPU] → Instruction access violation (attempted execute in no-exec region)"); }
+        if (mmfsr & 0x02) != 0 { rprintln!("[MPU] → Data access violation (read/write permission denied)"); }
+        if (mmfsr & 0x08) != 0 { rprintln!("[MPU] → MemManage fault during exception return (stack corruption)"); }
+        if (mmfsr & 0x10) != 0 { rprintln!("[MPU] → MemManage fault during exception entry (stack overflow)"); }
+        if (mmfsr & 0x20) != 0 { rprintln!("[MPU] → MemManage fault on lazy FP state preservation"); }
 
-        // Show current task info
-        rprintln!("[MPU] Current task count: {}", sched::get_task_count());
+        // Show current execution context
+        let current_task_count = sched::get_task_count();
+        rprintln!("[MPU] Current task count: {}", current_task_count);
 
-        // Clear the fault
+        // Get current execution mode
+        let mut control: u32;
+        let mut psp: u32;
+        let mut msp: u32;
+        core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
+        core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
+        core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
+
+        rprintln!("[MPU] Execution context: CONTROL=0x{:08x}, PSP=0x{:08x}, MSP=0x{:08x}",
+                 control, psp, msp);
+
+        if (control & 0x02) != 0 {
+            rprintln!("[MPU] → Fault occurred in THREAD mode (using PSP)");
+        } else {
+            rprintln!("[MPU] → Fault occurred in HANDLER mode (using MSP)");
+        }
+
+        // Clear the fault for potential recovery
         core::ptr::write_volatile(SCB_MMFSR, 0xFF);
+
+        rprintln!("[MPU] === END VIOLATION ANALYSIS ===");
     }
 
-    rprintln!("[MPU] Task will be terminated due to memory protection violation");
+    rprintln!("[MPU] FATAL: Task terminated due to memory protection violation");
+    rprintln!("[MPU] System entering safe mode - halting execution");
+
     // In a real implementation, you would mark the current task as blocked/killed
     // and trigger a context switch to continue with other tasks
     loop {}
@@ -853,9 +888,78 @@ mod mpu {
         }
     }
 
+    // Dump current MPU region configuration for debugging
+    pub unsafe fn dump_mpu_regions() {
+        rprintln!("[MPU] === MPU REGION CONFIGURATION DUMP ===");
+
+        // Check if MPU is enabled
+        let mpu_ctrl = core::ptr::read_volatile(MPU_CTRL);
+        let mpu_enabled = (mpu_ctrl & MPU_CTRL_ENABLE) != 0;
+        let privdefena = (mpu_ctrl & MPU_CTRL_PRIVDEFENA) != 0;
+        let hfnmiena = (mpu_ctrl & MPU_CTRL_HFNMIENA) != 0;
+
+        rprintln!("[MPU] Control: 0x{:08x} (Enabled: {}, PrivDefEna: {}, HFNMIEna: {})",
+                 mpu_ctrl, mpu_enabled, privdefena, hfnmiena);
+
+        if !mpu_enabled {
+            rprintln!("[MPU] MPU is disabled - no regions active");
+            return;
+        }
+
+        // Get number of available regions
+        let mpu_type = core::ptr::read_volatile(MPU_TYPE);
+        let num_regions = ((mpu_type >> 8) & 0xFF) as u8;
+        rprintln!("[MPU] Available regions: {}", num_regions);
+
+        // Dump each region
+        for region in 0..num_regions.min(8) {
+            // Select region
+            core::ptr::write_volatile(MPU_RNR, region as u32);
+
+            // Read region configuration
+            let rbar = core::ptr::read_volatile(MPU_RBAR);
+            let rasr = core::ptr::read_volatile(MPU_RASR);
+
+            let enabled = (rasr & MPU_RASR_ENABLE) != 0;
+            if !enabled {
+                rprintln!("[MPU] Region {}: DISABLED", region);
+                continue;
+            }
+
+            let base_addr = rbar & 0xFFFFFFE0; // Clear lower 5 bits
+            let size_encoding = (rasr >> MPU_RASR_SIZE_SHIFT) & 0x1F;
+            let region_size = 1u32 << (size_encoding + 1);
+            let access_perm = (rasr >> MPU_RASR_AP_SHIFT) & 0x7;
+            let execute_never = (rasr & MPU_RASR_XN) != 0;
+
+            let perm_str = match access_perm {
+                0b000 => "NO_ACCESS",
+                0b001 => "PRIV_RW",
+                0b010 => "PRIV_RW/USER_RO",
+                0b011 => "PRIV_RW/USER_RW",
+                0b101 => "PRIV_RO",
+                0b110 => "PRIV_RO/USER_RO",
+                _ => "UNKNOWN",
+            };
+
+            rprintln!("[MPU] Region {}: 0x{:08x}-0x{:08x} ({} bytes) {} {}",
+                     region,
+                     base_addr,
+                     base_addr + region_size - 1,
+                     region_size,
+                     perm_str,
+                     if execute_never { "XN" } else { "EXEC" });
+        }
+
+        rprintln!("[MPU] === END REGION DUMP ===");
+    }
+
     // Test MPU protection by attempting invalid memory access
     pub unsafe fn test_mpu_protection() {
         rprintln!("[MPU] Testing memory protection...");
+
+        // First, dump current MPU configuration
+        dump_mpu_regions();
 
         // This should work - accessing current task's stack
         let test_value = 0x12345678u32;
@@ -1940,6 +2044,7 @@ fn syscalls() -> &'static mut svc::Client {
 /// Apps should use these instead of direct syscalls() access
 pub mod app_syscalls {
     use super::{GpioPin, Syscalls, syscalls};
+    use rtt_target::rprintln;
 
     /// Allow an app to control GPIO (with capability checking in future)
     pub fn gpio_write(pin: GpioPin, value: bool) {
@@ -1970,6 +2075,40 @@ pub mod app_syscalls {
             static mut TICK_COUNTER: u32 = 0;
             TICK_COUNTER = TICK_COUNTER.wrapping_add(1);
             TICK_COUNTER
+        }
+    }
+
+    /// Test MPU protection (for debugging - should trigger MemoryManagement fault)
+    /// WARNING: This function will cause a memory protection fault if MPU is active
+    pub fn test_memory_violation() {
+        rprintln!("[TEST] Attempting controlled memory protection violation...");
+
+        // Attempt to access kernel-only SRAM region (should fail in unprivileged mode)
+        unsafe {
+            let kernel_addr = 0x2000_0000 as *mut u32;
+            rprintln!("[TEST] Attempting write to kernel SRAM at 0x{:08x}", kernel_addr as u32);
+
+            // This should trigger MemoryManagement fault if MPU is properly configured
+            core::ptr::write_volatile(kernel_addr, 0xDEADBEEF);
+
+            // If we reach here, MPU is not protecting properly
+            rprintln!("[TEST] ERROR: Memory violation was not caught by MPU!");
+        }
+    }
+
+    /// Test stack boundary protection
+    pub fn test_stack_overflow_protection() {
+        rprintln!("[TEST] Testing stack boundary protection...");
+
+        // Try to access memory way beyond current task's stack
+        unsafe {
+            let far_stack_addr = 0x2001F000 as *mut u32;  // Far beyond normal stack range
+            rprintln!("[TEST] Attempting access at 0x{:08x}", far_stack_addr as u32);
+
+            // This might trigger MemoryManagement fault depending on MPU configuration
+            core::ptr::write_volatile(far_stack_addr, 0xBADC0DE);
+
+            rprintln!("[TEST] Stack boundary test completed (no fault)");
         }
     }
 
@@ -2015,12 +2154,23 @@ fn main() -> ! {
 
     rprintln!("[MAIN] Board initialization complete");
 
-    // Temporarily disable MPU for debugging
-    rprintln!("[MAIN] MPU disabled for debugging");
-    // match mpu::init_mpu() {
-    //     Ok(_) => rprintln!("[MAIN] MPU initialization successful"),
-    //     Err(e) => rprintln!("[MAIN] MPU initialization failed: {}", e),
-    // }
+    // Initialize MPU for memory protection (Tock OS 3-tier trust model)
+    rprintln!("[MAIN] Initializing MPU for memory protection...");
+    match mpu::init_mpu() {
+        Ok(_) => {
+            rprintln!("[MAIN] MPU initialization successful");
+            rprintln!("[MAIN] Memory protection enabled - 3-tier trust model active");
+
+            // Dump MPU configuration for verification
+            unsafe {
+                mpu::dump_mpu_regions();
+            }
+        },
+        Err(e) => {
+            rprintln!("[MAIN] MPU initialization failed: {}", e);
+            rprintln!("[MAIN] Continuing without memory protection");
+        }
+    }
 
     rprintln!("[MAIN] Initializing OS with dynamic spawning only...");
 
