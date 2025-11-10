@@ -799,15 +799,16 @@ mod mpu {
             configure_region(0, 0x0800_0000, region_size_encoding(512 * 1024)?,
                             MPU_AP_PRIV_RW_USER_RO, false)?; // Allow execution
 
-            // Region 1: SRAM - Privileged access for kernel area
-            // Reserve first 64KB for kernel, remaining for app stacks
-            configure_region(1, 0x2000_0000, region_size_encoding(64 * 1024)?,
+            // Region 1: SRAM - Privileged access for kernel area (full 128KB protection)
+            // Protect entire SRAM from unprivileged access, task stacks override with region 2-7
+            configure_region(1, 0x2000_0000, region_size_encoding(128 * 1024)?,
                             MPU_AP_PRIV_RW, true)?; // Execute never for kernel data
         }
 
         rprintln!("[MPU] STM32F446 memory regions configured:");
         rprintln!("  Region 0: Flash 0x0800_0000-0x0807_FFFF (512KB) - PRIV RW/USER RO");
-        rprintln!("  Region 1: SRAM  0x2000_0000-0x2000_FFFF (64KB)  - PRIV RW only, XN");
+        rprintln!("  Region 1: SRAM  0x2000_0000-0x2001_FFFF (128KB) - PRIV RW only, XN");
+        rprintln!("  Region 2-7: Task stacks (dynamic) - PRIV RW/USER RW, XN (override region 1)");
         Ok(())
     }
 
@@ -852,7 +853,7 @@ mod mpu {
 
     // Convert size in bytes to MPU region size encoding
     // MPU region size = 2^(encoding + 1), minimum size is 32 bytes (encoding = 4)
-    fn region_size_encoding(size_bytes: usize) -> Result<u32, &'static str> {
+    pub fn region_size_encoding(size_bytes: usize) -> Result<u32, &'static str> {
         if size_bytes < 32 {
             return Err("Region too small (minimum 32 bytes)");
         }
@@ -873,19 +874,62 @@ mod mpu {
         Ok(encoding)
     }
 
-    // Configure MPU for a specific task stack
+    // Align address to MPU region size boundary
+    fn align_to_region_size(addr: u32, size: u32) -> u32 {
+        let alignment = size;
+        (addr + alignment - 1) & !(alignment - 1)
+    }
+
+    // Configure MPU for a specific task stack using pre-aligned base address
     pub unsafe fn configure_task_stack_protection(
         region_num: u8,
         stack_base: *mut u32,
-        stack_size: u32
+        stack_size: u32,
+        task_id: u32
     ) -> Result<(), &'static str> {
-        let base_addr = stack_base as u32;
-        let size_encoding = region_size_encoding(stack_size as usize)?;
+        // Find the allocation record to get pre-aligned base and region size
+        let mut aligned_base = stack_base as u32;
+        let mut region_size_bytes = stack_size as usize;
 
-        unsafe {
-            configure_region(region_num, base_addr, size_encoding,
-                            MPU_AP_PRIV_RW_USER_RW, true) // Stack is XN (execute never)
+        // Look up pre-calculated alignment from allocation tracking
+        for i in 0..unsafe { super::sched::N_ALLOCATIONS } {
+            let alloc = unsafe { &super::sched::STACK_ALLOCATIONS[i] };
+            if !alloc.is_free && alloc.task_id == task_id {
+                aligned_base = alloc.base_addr;
+                region_size_bytes = alloc.region_size_words * core::mem::size_of::<u32>();
+                break;
+            }
         }
+
+        let size_encoding = region_size_encoding(region_size_bytes)?;
+
+        // Log configuration for debugging
+        if region_num <= 4 {
+            rprintln!("[MPU] Region {}: base=0x{:08x}, size={}B ({}KB), task_id={}",
+                     region_num, aligned_base, region_size_bytes, region_size_bytes / 1024, task_id);
+        }
+
+        let result = unsafe {
+            configure_region(region_num, aligned_base, size_encoding,
+                            MPU_AP_PRIV_RW_USER_RW, true) // Stack is XN (execute never)
+        };
+
+        // Debug: Verify region was actually configured
+        if result.is_err() {
+            rprintln!("[MPU] ERROR: Failed to configure region {}: {:?}", region_num, result);
+        } else if region_num <= 4 {
+            // Verify the region is actually enabled by reading back
+            unsafe {
+                core::ptr::write_volatile(MPU_RNR, region_num as u32);
+                let rbar = core::ptr::read_volatile(MPU_RBAR);
+                let rasr = core::ptr::read_volatile(MPU_RASR);
+                let enabled = (rasr & MPU_RASR_ENABLE) != 0;
+                rprintln!("[MPU] Region {} verification: enabled={}, RBAR=0x{:08x}, RASR=0x{:08x}",
+                         region_num, enabled, rbar, rasr);
+            }
+        }
+
+        result
     }
 
     // Dump current MPU region configuration for debugging
@@ -1070,71 +1114,109 @@ mod sched {
     static mut CURR: usize = 0;
     static mut N_TASKS: usize = 0; // Dynamic task count
 
-    // 🚀 동적 스택 할당 추적 시스템
+    // 🚀 MPU-friendly 동적 스택 할당 추적 시스템
     #[derive(Copy, Clone, Debug)]
-    struct StackAllocation {
-        start_offset: usize,
-        size_words: usize,
-        task_id: u32,
-        name: &'static str,
-        is_free: bool,
+    pub struct StackAllocation {
+        pub start_offset: usize,      // Start offset in stack pool (words)
+        pub size_words: usize,        // Allocated size in words
+        pub region_size_words: usize, // Actual MPU region size in words (power-of-2)
+        pub base_addr: u32,          // Aligned base address for MPU
+        pub task_id: u32,
+        pub name: &'static str,
+        pub is_free: bool,
     }
 
-    static mut STACK_ALLOCATIONS: [StackAllocation; MAX_APPS] = [StackAllocation {
+    pub static mut STACK_ALLOCATIONS: [StackAllocation; MAX_APPS] = [StackAllocation {
         start_offset: 0,
         size_words: 0,
+        region_size_words: 0,
+        base_addr: 0,
         task_id: 0,
         name: "",
         is_free: true,
     }; MAX_APPS];
-    static mut N_ALLOCATIONS: usize = 0;
+    pub static mut N_ALLOCATIONS: usize = 0;
 
     #[inline(always)]
     fn align_up_words(value: usize, align_words: usize) -> usize {
         (value + align_words - 1) & !(align_words - 1)
     }
 
-    // 🚀 개선된 동적 스택 할당 시스템
+    // 🚀 MPU-friendly 동적 스택 할당 시스템
     #[allow(unsafe_op_in_unsafe_fn)]
     unsafe fn allocate_app_stack_dynamic(words: usize, task_id: u32, name: &'static str) -> &'static mut [u32] {
-        let aligned_offset = align_up_words(STACK_POOL_OFFSET, STACK_ALIGNMENT_WORDS);
-        let end = aligned_offset + words;
-
-        if end > APP_STACK_POOL_WORDS {
-            rprintln!(
-                "[FATAL] Stack pool exhausted: 요청 {} words, 남은 용량 {} words",
-                words,
-                APP_STACK_POOL_WORDS.saturating_sub(aligned_offset)
-            );
-            rprintln!("[STACK] Current allocations:");
-            for i in 0..N_ALLOCATIONS {
-                let alloc = &STACK_ALLOCATIONS[i];
-                if !alloc.is_free {
-                    rprintln!(
-                        "  - Task '{}' (ID: {}): {} words at offset {}",
-                        alloc.name, alloc.task_id, alloc.size_words, alloc.start_offset
-                    );
-                }
+        // Calculate required size in bytes and find appropriate MPU region size
+        let requested_bytes = words * core::mem::size_of::<u32>();
+        let size_encoding = match super::mpu::region_size_encoding(requested_bytes) {
+            Ok(encoding) => encoding,
+            Err(e) => {
+                rprintln!("[FATAL] Invalid stack size for task '{}': {}", name, e);
+                loop {}
             }
-            loop {}
+        };
+
+        // Calculate actual MPU region size (power-of-2)
+        let region_size_bytes = 1usize << (size_encoding + 1);
+        let region_size_words = region_size_bytes / core::mem::size_of::<u32>();
+
+        // Find aligned offset within stack pool that matches region boundary
+        let stack_pool_base = STACK_POOL.0.as_ptr() as u32;
+        let mut search_offset = align_up_words(STACK_POOL_OFFSET, STACK_ALIGNMENT_WORDS);
+
+        // Search for a region-aligned position within the stack pool
+        loop {
+            let candidate_addr = stack_pool_base + (search_offset as u32 * core::mem::size_of::<u32>() as u32);
+            let aligned_addr = (candidate_addr + region_size_bytes as u32 - 1) & !(region_size_bytes as u32 - 1);
+            let aligned_offset = ((aligned_addr - stack_pool_base) / core::mem::size_of::<u32>() as u32) as usize;
+
+            // Check if this aligned position fits in the stack pool
+            if aligned_offset + region_size_words <= APP_STACK_POOL_WORDS {
+                // Found a suitable position
+                STACK_POOL_OFFSET = aligned_offset + region_size_words;
+
+                // Track allocation
+                if N_ALLOCATIONS < MAX_APPS {
+                    STACK_ALLOCATIONS[N_ALLOCATIONS] = StackAllocation {
+                        start_offset: aligned_offset,
+                        size_words: words,                    // Requested size
+                        region_size_words: region_size_words, // Actual MPU region size
+                        base_addr: aligned_addr,              // MPU base address
+                        task_id,
+                        name,
+                        is_free: false,
+                    };
+                    N_ALLOCATIONS += 1;
+                }
+
+                rprintln!("[MPU-STACK] Task '{}': requested {}B → region {}B, base=0x{:08x}",
+                         name, requested_bytes, region_size_bytes, aligned_addr);
+
+                // Return slice with requested size, but from aligned position
+                return &mut STACK_POOL.0[aligned_offset..aligned_offset + words];
+            }
+
+            // Try next position
+            search_offset += 32; // Advance by reasonable increment
+            if search_offset >= APP_STACK_POOL_WORDS {
+                break;
+            }
         }
 
-        // 할당 정보 추적
-        if N_ALLOCATIONS < MAX_APPS {
-            STACK_ALLOCATIONS[N_ALLOCATIONS] = StackAllocation {
-                start_offset: aligned_offset,
-                size_words: words,
-                task_id,
-                name,
-                is_free: false,
-            };
-            N_ALLOCATIONS += 1;
+        // Stack pool exhausted
+        rprintln!("[FATAL] Stack pool exhausted: 요청 {}B (region {}B), 남은 용량 {}B",
+                 requested_bytes, region_size_bytes,
+                 (APP_STACK_POOL_WORDS - STACK_POOL_OFFSET) * core::mem::size_of::<u32>());
+        rprintln!("[STACK] Current allocations:");
+        for i in 0..N_ALLOCATIONS {
+            let alloc = &STACK_ALLOCATIONS[i];
+            if !alloc.is_free {
+                rprintln!("  - Task '{}' (ID: {}): {}B at 0x{:08x}",
+                         alloc.name, alloc.task_id,
+                         alloc.size_words * core::mem::size_of::<u32>(),
+                         alloc.base_addr);
+            }
         }
-
-        STACK_POOL_OFFSET = end;
-        // Reduced logging to prevent RTT overflow
-
-        &mut STACK_POOL.0[aligned_offset..end]
+        loop {}
     }
 
     // 🚀 스택 해제 함수 (향후 태스크 종료 시 사용)
@@ -1302,7 +1384,7 @@ mod sched {
         }
     }
 
-    // Initialize task stack and TCB from app metadata
+    // Initialize task stack and TCB from app metadata with MPU-aligned addresses
     fn init_app_stack_and_tcb(app: &mut AppMetadata, tcb: &mut Tcb, stack: &mut [u32]) {
         // Resolve entry point at runtime
         if app.entry == 0 {
@@ -1405,8 +1487,21 @@ mod sched {
         tcb.state = TaskState::Ready;
         tcb.app_id = app.id;
         tcb.name = app.name;
-        tcb.stack_base = stack.as_mut_ptr();
-        tcb.stack_size = stack_bytes as u32;
+        // Look up MPU-aligned base address from allocation tracking
+        let mut aligned_base = stack.as_mut_ptr();
+        let mut region_size_bytes = stack_bytes;
+        for i in 0..unsafe { N_ALLOCATIONS } {
+            let alloc = unsafe { &STACK_ALLOCATIONS[i] };
+            if !alloc.is_free && alloc.task_id == app.id {
+                aligned_base = alloc.base_addr as *mut u32;
+                region_size_bytes = alloc.region_size_words * core::mem::size_of::<u32>();
+                rprintln!("[INIT] App '{}': Using MPU-aligned base=0x{:08x}, region_size={}B",
+                         app.name, alloc.base_addr, region_size_bytes);
+                break;
+            }
+        }
+        tcb.stack_base = aligned_base;
+        tcb.stack_size = region_size_bytes as u32;
 
         // Configure MPU protection for this task's stack
         // Use region numbers 2+ for task stacks (0,1 reserved for basic regions)
@@ -1415,7 +1510,8 @@ mod sched {
             super::mpu::configure_task_stack_protection(
                 region_num as u8,
                 stack.as_mut_ptr(),
-                stack_bytes as u32
+                stack_bytes as u32,
+                app.id
             )
         };
 
@@ -1593,6 +1689,10 @@ mod sched {
                 "[SCHED] All {} applications initialized successfully",
                 core::ptr::read_volatile(core::ptr::addr_of!(N_TASKS))
             );
+
+            // Dump MPU regions after all tasks are configured
+            rprintln!("[MPU] === POST-TASK INITIALIZATION MPU DUMP ===");
+            unsafe { super::mpu::dump_mpu_regions(); }
         }
     }
 
@@ -1672,8 +1772,18 @@ mod sched {
 
             if FIRST_SWITCH {
                 FIRST_SWITCH = false;
-                // Critical debug log for first switch
-                rprintln!("[PendSV] First switch: task 0 '{}', PSP=0x{:08x}",
+
+                // Pre-transition debug logging
+                let mut control: u32;
+                let mut psp: u32;
+                let mut msp: u32;
+                core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
+                core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
+                core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
+
+                rprintln!("[PendSV] PRE-SWITCH: CONTROL=0x{:08x}, PSP=0x{:08x}, MSP=0x{:08x}",
+                         control, psp, msp);
+                rprintln!("[PendSV] First switch: task 0 '{}', target_PSP=0x{:08x}, transitioning to UNPRIVILEGED mode",
                          TCBS[0].name, TCBS[0].sp);
 
                 // Mark task 0 as running
@@ -1822,7 +1932,23 @@ mod sched {
         @ Set PSP from r1
         msr     psp, r1
 
-        @ Return to thread mode
+        @ Prepare for PSP + Unprivileged mode transition (Tock OS 3-tier model)
+        @ CRITICAL: Set EXC_RETURN first, then CONTROL to avoid MSP+Unprivileged fault
+        movw    lr, #0xFFFD    @ EXC_RETURN = 0xFFFFFFFD (PSP + Thread mode)
+        movt    lr, #0xFFFF
+
+        dsb                    @ Data synchronization barrier
+        isb                    @ Instruction synchronization barrier
+        mrs     r1, CONTROL
+        orr     r1, r1, #1     @ bit0: nPRIV=1 (unprivileged), SPSEL handled by EXC_RETURN
+        msr     CONTROL, r1
+        isb                    @ Instruction barrier for CONTROL changes
+
+        @ Clear BASEPRI to ensure no masking
+        mov     r3, #0
+        msr     basepri, r3
+
+        @ Return to thread mode - hardware will set SPSEL=1 due to EXC_RETURN
         bx      lr
 
     first_switch:
@@ -1845,28 +1971,24 @@ mod sched {
 
         @ Set PSP from r1
         msr     psp, r1
+
+        @ Prepare for first PSP + Unprivileged mode transition (Tock OS 3-tier trust model)
+        @ CRITICAL: Set EXC_RETURN first, then CONTROL to avoid MSP+Unprivileged fault
+        movw    lr, #0xFFFD    @ EXC_RETURN = 0xFFFFFFFD (PSP + Thread mode)
+        movt    lr, #0xFFFF
+
         dsb                    @ Data synchronization barrier
         isb                    @ Instruction synchronization barrier
-
-        @ Switch to thread mode using PSP (privileged for debugging)
         mrs     r1, CONTROL
-        orr     r1, r1, #2     @ Use PSP for thread mode (remain privileged)
+        orr     r1, r1, #1     @ bit0: nPRIV=1 (unprivileged), SPSEL handled by EXC_RETURN
         msr     CONTROL, r1
         isb                    @ Instruction barrier for CONTROL changes
-
-        @ Additional stabilization delay
-        mov     r2, #1000
-    delay_loop:
-        subs    r2, r2, #1
-        bne     delay_loop
 
         @ Ensure BASEPRI is cleared for tasks
         mov     r2, #0
         msr     basepri, r2
 
-        @ Set return to thread mode with PSP (EXC_RETURN = 0xFFFFFFFD)
-        movw    lr, #0xFFFD
-        movt    lr, #0xFFFF
+        @ Return to thread mode - hardware will set SPSEL=1 due to EXC_RETURN
         bx      lr
     "#,
         switch_fn = sym pend_sv_switch_rust,
@@ -2081,18 +2203,45 @@ pub mod app_syscalls {
     /// Test MPU protection (for debugging - should trigger MemoryManagement fault)
     /// WARNING: This function will cause a memory protection fault if MPU is active
     pub fn test_memory_violation() {
+        // 현재 권한 상태 확인
+        let control: u32;
+        unsafe {
+            core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
+        }
+
+        let is_privileged = (control & 0x01) == 0;
+        let uses_psp = (control & 0x02) != 0;
+
+        rprintln!("[TEST] Current execution mode:");
+        rprintln!("[TEST]   Privilege: {} (CONTROL=0x{:08x})",
+                 if is_privileged { "PRIVILEGED" } else { "UNPRIVILEGED" }, control);
+        rprintln!("[TEST]   Stack: {}",
+                 if uses_psp { "PSP (Thread)" } else { "MSP (Handler)" });
+
+        if is_privileged {
+            rprintln!("[TEST] WARNING: Still in privileged mode - MPU kernel protection may not trigger");
+            rprintln!("[TEST] This indicates the thread mode transition did not work properly");
+        } else {
+            rprintln!("[TEST] GOOD: In unprivileged mode - kernel access should trigger MPU fault");
+        }
+
         rprintln!("[TEST] Attempting controlled memory protection violation...");
 
         // Attempt to access kernel-only SRAM region (should fail in unprivileged mode)
         unsafe {
             let kernel_addr = 0x2000_0000 as *mut u32;
             rprintln!("[TEST] Attempting write to kernel SRAM at 0x{:08x}", kernel_addr as u32);
+            rprintln!("[TEST] Expected: MemoryManagement fault in unprivileged mode");
 
             // This should trigger MemoryManagement fault if MPU is properly configured
             core::ptr::write_volatile(kernel_addr, 0xDEADBEEF);
 
             // If we reach here, MPU is not protecting properly
             rprintln!("[TEST] ERROR: Memory violation was not caught by MPU!");
+            rprintln!("[TEST] This indicates either:");
+            rprintln!("[TEST]   1. Still in privileged mode");
+            rprintln!("[TEST]   2. MPU configuration incorrect");
+            rprintln!("[TEST]   3. Region 1 not properly configured for PRIV_RW only");
         }
     }
 
@@ -2109,6 +2258,36 @@ pub mod app_syscalls {
             core::ptr::write_volatile(far_stack_addr, 0xBADC0DE);
 
             rprintln!("[TEST] Stack boundary test completed (no fault)");
+        }
+    }
+
+    /// Check current privilege mode and execution state
+    pub fn check_privilege_state() {
+        let control: u32;
+        let psp: u32;
+        let msp: u32;
+
+        unsafe {
+            core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
+            core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
+            core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
+        }
+
+        let is_privileged = (control & 0x01) == 0;
+        let uses_psp = (control & 0x02) != 0;
+
+        rprintln!("[PRIVILEGE] Current execution state:");
+        rprintln!("[PRIVILEGE]   Mode: {} (CONTROL=0x{:08x})",
+                 if is_privileged { "PRIVILEGED" } else { "UNPRIVILEGED" }, control);
+        rprintln!("[PRIVILEGE]   Stack: {} (PSP=0x{:08x}, MSP=0x{:08x})",
+                 if uses_psp { "PSP (Thread)" } else { "MSP (Handler)" }, psp, msp);
+
+        if uses_psp && !is_privileged {
+            rprintln!("[PRIVILEGE]   Status: ✅ Proper unprivileged thread mode (Tock OS 3-tier model)");
+        } else if uses_psp && is_privileged {
+            rprintln!("[PRIVILEGE]   Status: ⚠️  Privileged thread mode (incomplete trust separation)");
+        } else {
+            rprintln!("[PRIVILEGE]   Status: 🔧 Handler mode (kernel/interrupt context)");
         }
     }
 
