@@ -275,15 +275,42 @@ unsafe fn MemoryManagement() -> ! {
         if mmfar != 0 {
             rprintln!("[MPU] Fault address: 0x{:08x}", mmfar);
 
+            // Get actual stack pool boundaries
+            let (stack_pool_base, stack_pool_size) = sched::get_stack_pool_bounds();
+            let stack_pool_end = stack_pool_base + stack_pool_size;
+
             // Analyze which memory region was violated
             if mmfar >= 0x08000000 && mmfar < 0x08080000 {
                 rprintln!("[MPU] → Flash memory violation (0x08000000-0x0807FFFF)");
-            } else if mmfar >= 0x20000000 && mmfar < 0x20010000 {
-                rprintln!("[MPU] → Kernel SRAM violation (0x20000000-0x2000FFFF)");
-            } else if mmfar >= 0x20010000 && mmfar < 0x20020000 {
-                rprintln!("[MPU] → Task stack area violation (0x20010000-0x2001FFFF)");
+            } else if mmfar >= stack_pool_base && mmfar < stack_pool_end {
+                rprintln!("[MPU] → Task stack pool violation (0x{:08x}-0x{:08x})", stack_pool_base, stack_pool_end - 1);
+                // Check which specific task stack region might be involved
+                rprintln!("[MPU] → This suggests stack overflow or unprivileged access to task stack");
+            } else if mmfar >= 0x20000000 && mmfar < 0x20020000 {
+                rprintln!("[MPU] → General SRAM violation (0x20000000-0x2001FFFF)");
+                if (mmfar as usize) < stack_pool_base as usize {
+                    rprintln!("[MPU] → Likely kernel/system area access (before stack pool)");
+                } else {
+                    rprintln!("[MPU] → Area beyond stack pool");
+                }
             } else {
                 rprintln!("[MPU] → Unknown memory region violation");
+            }
+
+            // Additional context based on CONTROL state
+            let control: u32;
+            let psp: u32;
+            let msp: u32;
+            unsafe {
+                core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
+                core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
+                core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
+            }
+
+            if (control & 1) != 0 && (control & 2) == 0 {
+                rprintln!("[MPU] ⚠️ CRITICAL: unprivileged thread using MSP (CONTROL=0x{:08x})", control);
+                rprintln!("[MPU] → This causes unprivileged access to kernel stack region");
+                rprintln!("[MPU] → Expected: CONTROL should be 0x3 (unprivileged + PSP)");
             }
         }
 
@@ -1765,6 +1792,16 @@ mod sched {
     static mut FIRST_SWITCH: bool = true;
     static mut NEXT_TASK_PSP: u32 = 0;
 
+
+    // PSP validation error logging function
+    extern "C" fn psp_validation_error(expected_psp: u32, actual_psp: u32) {
+        rprintln!("[PendSV] ❌ PSP VALIDATION FAILED!");
+        rprintln!("[PendSV] Expected PSP: 0x{:08x}", expected_psp);
+        rprintln!("[PendSV] Actual PSP:   0x{:08x}", actual_psp);
+        rprintln!("[PendSV] → PSP register write/read mismatch detected");
+        rprintln!("[PendSV] → This indicates hardware-level PSP rejection");
+    }
+
     // Context switching Rust helper functions - returns r4_ptr, sets PSP in global
     extern "C" fn pend_sv_switch_rust() -> *mut u32 {
         unsafe {
@@ -1773,18 +1810,28 @@ mod sched {
             if FIRST_SWITCH {
                 FIRST_SWITCH = false;
 
-                // Pre-transition debug logging
-                let mut control: u32;
-                let mut psp: u32;
-                let mut msp: u32;
-                core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
-                core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
-                core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
+                // === COMPREHENSIVE FIRST SWITCH LOGGING ===
+                // Pre-transition state capture
+                let mut control_pre: u32;
+                let mut psp_pre: u32;
+                let mut msp_pre: u32;
+                core::arch::asm!("mrs {}, CONTROL", out(reg) control_pre, options(nomem, nostack));
+                core::arch::asm!("mrs {}, PSP", out(reg) psp_pre, options(nomem, nostack));
+                core::arch::asm!("mrs {}, MSP", out(reg) msp_pre, options(nomem, nostack));
 
-                rprintln!("[PendSV] PRE-SWITCH: CONTROL=0x{:08x}, PSP=0x{:08x}, MSP=0x{:08x}",
-                         control, psp, msp);
-                rprintln!("[PendSV] First switch: task 0 '{}', target_PSP=0x{:08x}, transitioning to UNPRIVILEGED mode",
+                let is_privileged_pre = (control_pre & 0x01) == 0;
+                let uses_psp_pre = (control_pre & 0x02) != 0;
+
+                rprintln!("[PendSV] === FIRST SWITCH TRANSITION ANALYSIS ===");
+                rprintln!("[PendSV] PRE-STATE: CONTROL=0x{:08x} ({}|{}), PSP=0x{:08x}, MSP=0x{:08x}",
+                         control_pre,
+                         if is_privileged_pre { "PRIV" } else { "UNPRIV" },
+                         if uses_psp_pre { "PSP" } else { "MSP" },
+                         psp_pre, msp_pre);
+
+                rprintln!("[PendSV] TARGET: Task 0 '{}', target_PSP=0x{:08x}",
                          TCBS[0].name, TCBS[0].sp);
+                rprintln!("[PendSV] GOAL: 2-stage transition -> UNPRIVILEGED + PSP mode");
 
                 // Mark task 0 as running
                 TCBS[0].state = TaskState::Running;
@@ -1812,9 +1859,26 @@ mod sched {
                 let hw_frame = core::slice::from_raw_parts(next_psp as *const u32, 8);
                 let next_pc = hw_frame[6];
 
-                // context switching debugging
-                rprintln!("[SWITCH] {} -> {}: PC=0x{:08x}, PSP=0x{:08x}",
-                         current_task, next_task, next_pc, next_psp);
+                // === COMPREHENSIVE NORMAL SWITCH LOGGING ===
+                // Current execution state before switch
+                let mut control_curr: u32;
+                let mut psp_curr: u32;
+                let mut msp_curr: u32;
+                core::arch::asm!("mrs {}, CONTROL", out(reg) control_curr, options(nomem, nostack));
+                core::arch::asm!("mrs {}, PSP", out(reg) psp_curr, options(nomem, nostack));
+                core::arch::asm!("mrs {}, MSP", out(reg) msp_curr, options(nomem, nostack));
+
+                let is_privileged_curr = (control_curr & 0x01) == 0;
+                let uses_psp_curr = (control_curr & 0x02) != 0;
+
+                rprintln!("[SWITCH] === TASK TRANSITION {} -> {} ===", current_task, next_task);
+                rprintln!("[SWITCH] CURRENT: CONTROL=0x{:08x} ({}|{}), PSP=0x{:08x}",
+                         control_curr,
+                         if is_privileged_curr { "PRIV" } else { "UNPRIV" },
+                         if uses_psp_curr { "PSP" } else { "MSP" },
+                         psp_curr);
+                rprintln!("[SWITCH] NEXT: Task '{}', PC=0x{:08x}, PSP=0x{:08x}",
+                         TCBS[next_task].name, next_pc, next_psp);
 
                 if next_pc < 0x08000000 || next_pc >= 0x08080000 {
                     rprintln!("[FATAL] Invalid next task PC: 0x{:08x} for task {} '{}'",
@@ -1900,7 +1964,8 @@ mod sched {
         @ This preserves kernel context automatically
 
         mrs     r0, psp
-        cbz     r0, first_switch
+        cbnz    r0, normal_switch
+        b       first_switch
 
     normal_switch:
         @ Normal task-to-task switch
@@ -1932,23 +1997,32 @@ mod sched {
         @ Set PSP from r1
         msr     psp, r1
 
-        @ Prepare for PSP + Unprivileged mode transition (Tock OS 3-tier model)
-        @ CRITICAL: Set EXC_RETURN first, then CONTROL to avoid MSP+Unprivileged fault
-        movw    lr, #0xFFFD    @ EXC_RETURN = 0xFFFFFFFD (PSP + Thread mode)
-        movt    lr, #0xFFFF
-
+        @ === 2-STAGE SAFE PSP + UNPRIVILEGED TRANSITION (NO HANDLER VALIDATION) ===
+        @ Stage 1: Enable PSP while staying PRIVILEGED (avoid MSP+Unprivileged fault)
         dsb                    @ Data synchronization barrier
         isb                    @ Instruction synchronization barrier
-        mrs     r1, CONTROL
-        orr     r1, r1, #1     @ bit0: nPRIV=1 (unprivileged), SPSEL handled by EXC_RETURN
+        mov     r1, #2         @ CONTROL = 0x2: bit1(SPSEL)=1, bit0(nPRIV)=0 (PRIV+PSP)
+        msr     CONTROL, r1
+        isb                    @ Wait for PSP to become active
+
+        @ Stage 2: Now safely transition to UNPRIVILEGED (PSP is active)
+        mov     r1, #3         @ CONTROL = 0x3: bit1(SPSEL)=1, bit0(nPRIV)=1 (UNPRIV+PSP)
         msr     CONTROL, r1
         isb                    @ Instruction barrier for CONTROL changes
+
+        @ Simplified validation: Only ensure PSP is active
+        @ (nPRIV bit validation in Handler mode is unreliable)
+    normal_control_ok:
 
         @ Clear BASEPRI to ensure no masking
         mov     r3, #0
         msr     basepri, r3
 
-        @ Return to thread mode - hardware will set SPSEL=1 due to EXC_RETURN
+        @ Prepare EXC_RETURN for thread mode with PSP
+        movw    lr, #0xFFFD    @ EXC_RETURN = 0xFFFFFFFD (PSP + Thread mode)
+        movt    lr, #0xFFFF
+
+        @ Return to thread mode - now safely in PSP + Unprivileged
         bx      lr
 
     first_switch:
@@ -1972,28 +2046,82 @@ mod sched {
         @ Set PSP from r1
         msr     psp, r1
 
-        @ Prepare for first PSP + Unprivileged mode transition (Tock OS 3-tier trust model)
-        @ CRITICAL: Set EXC_RETURN first, then CONTROL to avoid MSP+Unprivileged fault
-        movw    lr, #0xFFFD    @ EXC_RETURN = 0xFFFFFFFD (PSP + Thread mode)
-        movt    lr, #0xFFFF
+        @ === PSP VALIDATION BEFORE CONTROL TRANSITION ===
+        @ Verify PSP was actually set
+        mrs     r3, psp
+        cmp     r3, r1         @ Compare set value with read value
+        beq     psp_valid      @ Continue if PSP matches
 
+        @ PSP validation failed - log error and halt
+        push    {{r0-r3, lr}}
+        mov     r0, r1         @ Expected PSP
+        mov     r1, r3         @ Actual PSP
+        bl      {psp_error_fn}
+        pop     {{r0-r3, lr}}
+        b       halt_system
+
+    psp_valid:
+        @ === ENHANCED PSP + UNPRIVILEGED TRANSITION WITH VERIFICATION ===
+        @ Ensure all memory operations complete before CONTROL changes
         dsb                    @ Data synchronization barrier
         isb                    @ Instruction synchronization barrier
-        mrs     r1, CONTROL
-        orr     r1, r1, #1     @ bit0: nPRIV=1 (unprivileged), SPSEL handled by EXC_RETURN
+
+        @ Additional delay to ensure PSP is fully committed
+        nop
+        nop
+        nop
+        nop
+
+        @ Stage 1: Enable PSP while staying PRIVILEGED
+        mov     r1, #2         @ CONTROL = 0x2: bit1(SPSEL)=1, bit0(nPRIV)=0 (PRIV+PSP)
         msr     CONTROL, r1
-        isb                    @ Instruction barrier for CONTROL changes
+        isb                    @ Critical: Wait for CONTROL to take effect
+
+        @ Verify SPSEL took effect by testing stack pointer source
+        @ In privileged mode, we can safely read CONTROL to check SPSEL
+        mrs     r3, CONTROL
+        tst     r3, #2         @ Test SPSEL bit
+        bne     spsel_ok       @ Continue if SPSEL=1
+
+        @ SPSEL failed to set - this is the core problem
+        push    {{r0-r3, lr}}
+        mov     r0, #2         @ Expected CONTROL
+        mov     r1, r3         @ Actual CONTROL
+        bl      {psp_error_fn}
+        pop     {{r0-r3, lr}}
+        b       halt_system
+
+    spsel_ok:
+        @ Stage 2: Now transition to UNPRIVILEGED (PSP is confirmed active)
+        mov     r1, #3         @ CONTROL = 0x3: bit1(SPSEL)=1, bit0(nPRIV)=1 (UNPRIV+PSP)
+        msr     CONTROL, r1
+        isb                    @ Final barrier for unprivileged transition
+
+        @ Simplified validation: Only ensure PSP is active
+        @ (nPRIV bit validation in Handler mode is unreliable)
+    first_control_ok:
 
         @ Ensure BASEPRI is cleared for tasks
         mov     r2, #0
         msr     basepri, r2
 
-        @ Return to thread mode - hardware will set SPSEL=1 due to EXC_RETURN
+        @ Prepare EXC_RETURN for thread mode with PSP
+        movw    lr, #0xFFFD    @ EXC_RETURN = 0xFFFFFFFD (PSP + Thread mode)
+        movt    lr, #0xFFFF
+
+        @ Return to thread mode - now safely in PSP + Unprivileged
         bx      lr
+
+    @ === MINIMAL ERROR HANDLER (if needed) ===
+    halt_system:
+        @ Simple infinite loop
+        wfi                    @ Wait for interrupt (save power)
+        b       halt_system
     "#,
         switch_fn = sym pend_sv_switch_rust,
         save_context_fn = sym save_current_context_rust,
-        next_psp = sym NEXT_TASK_PSP
+        next_psp = sym NEXT_TASK_PSP,
+        psp_error_fn = sym psp_validation_error
     );
 
     // 실시간 스택 오버플로우 탐지 함수
@@ -2058,6 +2186,15 @@ mod sched {
     // 🚀 스택 풀 상태 조회 함수
     pub fn get_stack_pool_usage() -> (usize, usize) {
         unsafe { (STACK_POOL_OFFSET, APP_STACK_POOL_WORDS) }
+    }
+
+    // 🚀 스택 풀 주소 범위 조회 함수
+    pub fn get_stack_pool_bounds() -> (u32, u32) {
+        unsafe {
+            let base = STACK_POOL.0.as_ptr() as u32;
+            let size = super::APP_STACK_POOL_BYTES as u32;
+            (base, size)
+        }
     }
 
     pub fn get_task_count() -> usize {
