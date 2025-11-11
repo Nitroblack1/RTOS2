@@ -299,13 +299,11 @@ unsafe fn MemoryManagement() -> ! {
 
             // Additional context based on CONTROL state
             let control: u32;
-            let psp: u32;
-            let msp: u32;
-            unsafe {
-                core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
-                core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
-                core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
-            }
+            let _psp: u32;
+            let _msp: u32;
+            core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
+            core::arch::asm!("mrs {}, PSP", out(reg) _psp, options(nomem, nostack));
+            core::arch::asm!("mrs {}, MSP", out(reg) _msp, options(nomem, nostack));
 
             if (control & 1) != 0 && (control & 2) == 0 {
                 rprintln!("[MPU] ⚠️ CRITICAL: unprivileged thread using MSP (CONTROL=0x{:08x})", control);
@@ -1187,7 +1185,7 @@ mod sched {
         let region_size_words = region_size_bytes / core::mem::size_of::<u32>();
 
         // Find aligned offset within stack pool that matches region boundary
-        let stack_pool_base = STACK_POOL.0.as_ptr() as u32;
+        let stack_pool_base = core::ptr::addr_of!(STACK_POOL.0).cast::<u8>() as u32;
         let mut search_offset = align_up_words(STACK_POOL_OFFSET, STACK_ALIGNMENT_WORDS);
 
         // Search for a region-aligned position within the stack pool
@@ -1719,7 +1717,7 @@ mod sched {
 
             // Dump MPU regions after all tasks are configured
             rprintln!("[MPU] === POST-TASK INITIALIZATION MPU DUMP ===");
-            unsafe { super::mpu::dump_mpu_regions(); }
+            super::mpu::dump_mpu_regions();
         }
     }
 
@@ -1863,10 +1861,10 @@ mod sched {
                 // Current execution state before switch
                 let mut control_curr: u32;
                 let mut psp_curr: u32;
-                let mut msp_curr: u32;
+                let mut _msp_curr: u32;
                 core::arch::asm!("mrs {}, CONTROL", out(reg) control_curr, options(nomem, nostack));
                 core::arch::asm!("mrs {}, PSP", out(reg) psp_curr, options(nomem, nostack));
-                core::arch::asm!("mrs {}, MSP", out(reg) msp_curr, options(nomem, nostack));
+                core::arch::asm!("mrs {}, MSP", out(reg) _msp_curr, options(nomem, nostack));
 
                 let is_privileged_curr = (control_curr & 0x01) == 0;
                 let uses_psp_curr = (control_curr & 0x02) != 0;
@@ -2191,7 +2189,7 @@ mod sched {
     // 🚀 스택 풀 주소 범위 조회 함수
     pub fn get_stack_pool_bounds() -> (u32, u32) {
         unsafe {
-            let base = STACK_POOL.0.as_ptr() as u32;
+            let base = core::ptr::addr_of!(STACK_POOL.0).cast::<u8>() as u32;
             let size = super::APP_STACK_POOL_BYTES as u32;
             (base, size)
         }
