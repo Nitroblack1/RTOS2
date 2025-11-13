@@ -8,8 +8,7 @@ static mut GPIO_STATE_CHANGES: u32 = 0;
 
 #[app(id = 4, stack_size = 288, name = "gpio_monitor")]
 pub unsafe extern "C" fn gpio_monitor() -> ! {
-    // Direct RTT log to bypass syscall system
-    rtt_target::rprintln!("[APP] gpio_monitor ENTERED - direct RTT log");
+    // Removed rtt_target::rprintln! to prevent unprivileged interrupt disable
 
     crate::app_syscalls::debug_print(
         4,
@@ -25,12 +24,12 @@ pub unsafe extern "C" fn gpio_monitor() -> ! {
                 GPIO_STATE_CHANGES = GPIO_STATE_CHANGES.wrapping_add(1);
 
                 if GPIO_STATE_CHANGES % 3 == 0 {
-                    cortex_m::interrupt::disable();
+                    // Removed cortex_m::interrupt::disable/enable to prevent unprivileged fault
                     let _changes =
                         core::ptr::read_volatile(core::ptr::addr_of!(GPIO_STATE_CHANGES));
                     let _count = core::ptr::read_volatile(core::ptr::addr_of!(GPIO_MONITOR_COUNT));
                     crate::app_syscalls::debug_print(4, "GPIO state change detected");
-                    cortex_m::interrupt::enable();
+                    // Removed cortex_m::interrupt::enable() - not needed for simple volatile reads
                 }
             }
         }

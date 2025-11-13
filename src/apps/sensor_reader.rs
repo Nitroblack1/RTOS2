@@ -6,8 +6,7 @@ use app_macros::app;
 
 #[app(id = 7, stack_size = 384, name = "sensor_reader")]
 pub unsafe extern "C" fn sensor_reader() -> ! {
-    // Direct RTT log to bypass syscall system
-    rtt_target::rprintln!("[APP] sensor_reader ENTERED - direct RTT log");
+    // Removed rtt_target::rprintln! to prevent unprivileged interrupt disable
 
     app_syscalls::debug_print(7, "Sensor Reader app starting!");
 

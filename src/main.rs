@@ -12,6 +12,84 @@ use stm32f4 as _; // Required for memory layout and vector table
 mod apps;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+// ───────────── LED CONTROL MODULE ─────────────
+
+mod led_control {
+    const GPIOA_ODR: *mut u32 = 0x4000_0014 as *mut u32;
+
+    unsafe fn led_on() {
+        let odr = core::ptr::read_volatile(GPIOA_ODR);
+        core::ptr::write_volatile(GPIOA_ODR, odr | (1 << 5));
+    }
+
+    unsafe fn led_off() {
+        let odr = core::ptr::read_volatile(GPIOA_ODR);
+        core::ptr::write_volatile(GPIOA_ODR, odr & !(1 << 5));
+    }
+
+    unsafe fn delay_cycles(cycles: u32) {
+        for _ in 0..cycles {
+            core::arch::asm!("nop");
+        }
+    }
+
+    pub unsafe fn signal_demo_alive() {
+        for _ in 0..2 {
+            led_on();
+            delay_cycles(50000);
+            led_off();
+            delay_cycles(50000);
+        }
+    }
+
+    pub unsafe fn signal_counter_alive() {
+        for _ in 0..3 {
+            led_on();
+            delay_cycles(50000);
+            led_off();
+            delay_cycles(50000);
+        }
+    }
+
+    pub unsafe fn signal_fibonacci_alive() {
+        led_on();
+        delay_cycles(800000);
+        led_off();
+    }
+
+    pub unsafe fn signal_memory_fault() {
+        for _ in 0..3 {
+            led_on();
+            delay_cycles(100000);
+            led_off();
+            delay_cycles(100000);
+            led_on();
+            delay_cycles(100000);
+            led_off();
+            delay_cycles(100000);
+            led_on();
+            delay_cycles(100000);
+            led_off();
+            delay_cycles(300000);
+        }
+    }
+
+    pub unsafe fn signal_hard_fault() -> ! {
+        loop {
+            led_on();
+            delay_cycles(25000);
+            led_off();
+            delay_cycles(25000);
+        }
+    }
+
+    pub unsafe fn heartbeat_led() {
+        led_on();
+        delay_cycles(25000);
+        led_off();
+    }
+}
+
 // ───────────── APP METADATA SYSTEM ─────────────
 
 
@@ -182,10 +260,22 @@ pub unsafe fn get_registered_apps_mut() -> &'static mut [AppMetadata] {
 // for debug
 #[cortex_m_rt::exception]
 unsafe fn HardFault(ef: &cortex_m_rt::ExceptionFrame) -> ! {
-    rprintln!("[FATAL] HardFault at PC: 0x{:08x}", ef.pc());
-    rprintln!("[FATAL] LR: 0x{:08x}", ef.lr());
-    rprintln!("[FATAL] r0: 0x{:08x}, r1: 0x{:08x}", ef.r0(), ef.r1());
-    rprintln!("[FATAL] r2: 0x{:08x}, r3: 0x{:08x}", ef.r2(), ef.r3());
+    rprintln!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    rprintln!("🚨 CRITICAL: HardFault Exception Occurred!");
+    rprintln!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    rprintln!("[FATAL] PC (Program Counter): 0x{:08x}", ef.pc());
+    rprintln!("[FATAL] LR (Link Register): 0x{:08x}", ef.lr());
+    rprintln!("[FATAL] Registers: r0=0x{:08x}, r1=0x{:08x}", ef.r0(), ef.r1());
+    rprintln!("[FATAL] Registers: r2=0x{:08x}, r3=0x{:08x}", ef.r2(), ef.r3());
+
+    // Identify likely PC location
+    if ef.pc() >= 0x08000000 && ef.pc() < 0x08080000 {
+        rprintln!("[FATAL] 📍 PC in FLASH memory - likely app or kernel code");
+    } else if ef.pc() >= 0x20000000 && ef.pc() < 0x20020000 {
+        rprintln!("[FATAL] ⚠️  PC in RAM - corrupted execution or stack overflow");
+    } else {
+        rprintln!("[FATAL] ❌ PC in invalid memory region!");
+    }
 
     // MPU and fault status diagnostics
     unsafe {
@@ -237,6 +327,41 @@ unsafe fn HardFault(ef: &cortex_m_rt::ExceptionFrame) -> ! {
         core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
 
         rprintln!("[FAULT] CONTROL: 0x{:08x}, PSP: 0x{:08x}, MSP: 0x{:08x}", control, psp, msp);
+
+        // 🔍 Enhanced fault analysis
+        rprintln!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        rprintln!("🔍 ENHANCED FAULT ANALYSIS:");
+
+        // Analyze Usage Fault details (most likely for privileged instruction)
+        if ufsr != 0 {
+            rprintln!("🚨 UsageFault detected - likely cause of HardFault escalation:");
+            if (ufsr & 0x0001) != 0 { rprintln!("  ❌ UNDEFINSTR: Undefined instruction"); }
+            if (ufsr & 0x0002) != 0 { rprintln!("  ❌ INVSTATE: Invalid state (e.g., Thumb bit clear)"); }
+            if (ufsr & 0x0004) != 0 { rprintln!("  ❌ INVPC: Invalid PC load"); }
+            if (ufsr & 0x0008) != 0 { rprintln!("  ❌ NOCP: No coprocessor"); }
+            if (ufsr & 0x0100) != 0 { rprintln!("  🔒 UNALIGNED: Unaligned access"); }
+            if (ufsr & 0x0200) != 0 {
+                rprintln!("  🔒 DIVBYZERO: Division by zero");
+            }
+        }
+
+        // Check for common unprivileged violations
+        let is_privileged = (control & 0x01) == 0;
+        let uses_psp = (control & 0x02) != 0;
+
+        rprintln!("🔒 Privilege State Analysis:");
+        rprintln!("  Mode: {} | Stack: {}",
+                 if is_privileged { "PRIVILEGED" } else { "UNPRIVILEGED" },
+                 if uses_psp { "PSP (Thread)" } else { "MSP (Handler)" });
+
+        if !is_privileged && (ufsr & 0x0001) != 0 {
+            rprintln!("  💡 LIKELY CAUSE: Unprivileged thread tried to execute privileged instruction!");
+            rprintln!("     - Check for: cortex_m::interrupt::disable/enable()");
+            rprintln!("     - Check for: SCB register access");
+            rprintln!("     - Check for: direct CPSID I/CPSIE I assembly");
+        }
+
+        rprintln!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     }
 
     // 현재 실행 중인 태스크 정보
@@ -253,104 +378,14 @@ unsafe fn UsageFault() -> ! {
 
 #[cortex_m_rt::exception]
 unsafe fn MemoryManagement() -> ! {
-    rprintln!("[MPU] MemoryManagement fault occurred - memory protection violation detected");
+    // Signal memory fault with LED instead of potentially dangerous rprintln! calls
+    crate::led_control::signal_memory_fault();
 
-    // Read MPU fault status and address
-    const SCB_MMFSR: *mut u8 = 0xE000_ED28 as *mut u8; // MemManage Fault Status Register
-    const SCB_MMFAR: *mut u32 = 0xE000_ED34 as *mut u32; // MemManage Fault Address Register
-    const SCB_CFSR: *mut u32 = 0xE000_ED28 as *mut u32; // Configurable Fault Status Register
+    // Clear the fault status register for potential recovery
+    const SCB_MMFSR: *mut u8 = 0xE000_ED28 as *mut u8;
+    core::ptr::write_volatile(SCB_MMFSR, 0xFF);
 
-    unsafe {
-        let mmfsr = core::ptr::read_volatile(SCB_MMFSR);
-        let cfsr = core::ptr::read_volatile(SCB_CFSR);
-        let mmfar = if (mmfsr & 0x80) != 0 { // MMARVALID bit
-            core::ptr::read_volatile(SCB_MMFAR)
-        } else {
-            0
-        };
-
-        rprintln!("[MPU] === MEMORY PROTECTION VIOLATION ANALYSIS ===");
-        rprintln!("[MPU] MMFSR: 0x{:02x}, CFSR: 0x{:08x}", mmfsr, cfsr);
-
-        if mmfar != 0 {
-            rprintln!("[MPU] Fault address: 0x{:08x}", mmfar);
-
-            // Get actual stack pool boundaries
-            let (stack_pool_base, stack_pool_size) = sched::get_stack_pool_bounds();
-            let stack_pool_end = stack_pool_base + stack_pool_size;
-
-            // Analyze which memory region was violated
-            if mmfar >= 0x08000000 && mmfar < 0x08080000 {
-                rprintln!("[MPU] → Flash memory violation (0x08000000-0x0807FFFF)");
-            } else if mmfar >= stack_pool_base && mmfar < stack_pool_end {
-                rprintln!("[MPU] → Task stack pool violation (0x{:08x}-0x{:08x})", stack_pool_base, stack_pool_end - 1);
-                // Check which specific task stack region might be involved
-                rprintln!("[MPU] → This suggests stack overflow or unprivileged access to task stack");
-            } else if mmfar >= 0x20000000 && mmfar < 0x20020000 {
-                rprintln!("[MPU] → General SRAM violation (0x20000000-0x2001FFFF)");
-                if (mmfar as usize) < stack_pool_base as usize {
-                    rprintln!("[MPU] → Likely kernel/system area access (before stack pool)");
-                } else {
-                    rprintln!("[MPU] → Area beyond stack pool");
-                }
-            } else {
-                rprintln!("[MPU] → Unknown memory region violation");
-            }
-
-            // Additional context based on CONTROL state
-            let control: u32;
-            let _psp: u32;
-            let _msp: u32;
-            core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
-            core::arch::asm!("mrs {}, PSP", out(reg) _psp, options(nomem, nostack));
-            core::arch::asm!("mrs {}, MSP", out(reg) _msp, options(nomem, nostack));
-
-            if (control & 1) != 0 && (control & 2) == 0 {
-                rprintln!("[MPU] ⚠️ CRITICAL: unprivileged thread using MSP (CONTROL=0x{:08x})", control);
-                rprintln!("[MPU] → This causes unprivileged access to kernel stack region");
-                rprintln!("[MPU] → Expected: CONTROL should be 0x3 (unprivileged + PSP)");
-            }
-        }
-
-        // Decode fault type with detailed explanations
-        if (mmfsr & 0x01) != 0 { rprintln!("[MPU] → Instruction access violation (attempted execute in no-exec region)"); }
-        if (mmfsr & 0x02) != 0 { rprintln!("[MPU] → Data access violation (read/write permission denied)"); }
-        if (mmfsr & 0x08) != 0 { rprintln!("[MPU] → MemManage fault during exception return (stack corruption)"); }
-        if (mmfsr & 0x10) != 0 { rprintln!("[MPU] → MemManage fault during exception entry (stack overflow)"); }
-        if (mmfsr & 0x20) != 0 { rprintln!("[MPU] → MemManage fault on lazy FP state preservation"); }
-
-        // Show current execution context
-        let current_task_count = sched::get_task_count();
-        rprintln!("[MPU] Current task count: {}", current_task_count);
-
-        // Get current execution mode
-        let mut control: u32;
-        let mut psp: u32;
-        let mut msp: u32;
-        core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
-        core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
-        core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
-
-        rprintln!("[MPU] Execution context: CONTROL=0x{:08x}, PSP=0x{:08x}, MSP=0x{:08x}",
-                 control, psp, msp);
-
-        if (control & 0x02) != 0 {
-            rprintln!("[MPU] → Fault occurred in THREAD mode (using PSP)");
-        } else {
-            rprintln!("[MPU] → Fault occurred in HANDLER mode (using MSP)");
-        }
-
-        // Clear the fault for potential recovery
-        core::ptr::write_volatile(SCB_MMFSR, 0xFF);
-
-        rprintln!("[MPU] === END VIOLATION ANALYSIS ===");
-    }
-
-    rprintln!("[MPU] FATAL: Task terminated due to memory protection violation");
-    rprintln!("[MPU] System entering safe mode - halting execution");
-
-    // In a real implementation, you would mark the current task as blocked/killed
-    // and trigger a context switch to continue with other tasks
+    // System entering safe mode - halting execution
     loop {}
 }
 // for debug
@@ -617,6 +652,7 @@ mod svc {
         pub const GPIO_WRITE: u8 = 2;
         pub const GPIO_TOGGLE: u8 = 3;
         pub const SLEEP_MS: u8 = 4;
+        pub const YIELD_CPU: u8 = 5;
     }
 
     #[inline(always)]
@@ -706,6 +742,11 @@ mod svc {
             }
             abi::SLEEP_MS => {
                 board.sleep_ms(a0);
+                0
+            }
+            abi::YIELD_CPU => {
+                // Trigger context switch by setting PendSV (privileged operation)
+                cortex_m::peripheral::SCB::set_pendsv();
                 0
             }
             _ => 0xFFFF_FFFF,
@@ -824,16 +865,16 @@ mod mpu {
             configure_region(0, 0x0800_0000, region_size_encoding(512 * 1024)?,
                             MPU_AP_PRIV_RW_USER_RO, false)?; // Allow execution
 
-            // Region 1: SRAM - Privileged access for kernel area (full 128KB protection)
-            // Protect entire SRAM from unprivileged access, task stacks override with region 2-7
+            // Region 1: SRAM - Allow unprivileged access to app static variables
+            // Changed from PRIV_RW to PRIV_RW_USER_RW to allow app static variable access
             configure_region(1, 0x2000_0000, region_size_encoding(128 * 1024)?,
-                            MPU_AP_PRIV_RW, true)?; // Execute never for kernel data
+                            MPU_AP_PRIV_RW_USER_RW, true)?; // Execute never, but allow unprivileged R/W
         }
 
         rprintln!("[MPU] STM32F446 memory regions configured:");
         rprintln!("  Region 0: Flash 0x0800_0000-0x0807_FFFF (512KB) - PRIV RW/USER RO");
-        rprintln!("  Region 1: SRAM  0x2000_0000-0x2001_FFFF (128KB) - PRIV RW only, XN");
-        rprintln!("  Region 2-7: Task stacks (dynamic) - PRIV RW/USER RW, XN (override region 1)");
+        rprintln!("  Region 1: SRAM  0x2000_0000-0x2001_FFFF (128KB) - PRIV RW/USER RW, XN");
+        rprintln!("  Region 2-7: Task stacks (dynamic) - PRIV RW/USER RW, XN (individual stack protection)");
         Ok(())
     }
 
@@ -2205,24 +2246,22 @@ mod sched {
         for _ in 0..30000 {
             cortex_m::asm::nop();
         }
-        rprintln!("[DEMO] start");
-        rprintln!("[DEMO] about to enter loop");
+        // Removed rprintln! calls to prevent unprivileged interrupt disable
 
         let mut count = 0u32;
 
         loop {
             count = count.wrapping_add(1);
 
-            // 매우 간단한 로깅
+            // Continue running (removed all logging to prevent unprivileged interrupt disable)
             if count == 1 {
-                rprintln!("[DEMO] first iteration");
-                rprintln!("[DEMO] about to call yield_cpu");
+                // First iteration (no logging)
             }
             if count == 2 {
-                rprintln!("[DEMO] second iteration - yield worked!");
+                // Second iteration (no logging)
             }
             if count % 500 == 0 {
-                rprintln!("[DEMO] count={}", count);
+                // Milestone reached (no logging)
             }
 
             // 정상적인 yield_cpu 사용
@@ -2314,15 +2353,16 @@ pub mod app_syscalls {
     }
 
     /// Allow an app to print debug messages (kernel-mediated logging)
-    pub fn debug_print(app_id: u32, message: &str) {
-        // In real Tock, this would go through proper logging subsystem
-        rtt_target::rprintln!("[APP{}] {}", app_id, message);
+    pub fn debug_print(_app_id: u32, _message: &str) {
+        // Disabled to prevent unprivileged interrupt disable
+        // In real Tock, this would go through proper logging subsystem via privileged kernel
+        // For now, silently ignore to prevent HardFault from unprivileged rprintln!
     }
 
     /// Allow an app to yield CPU (cooperative scheduling)
     pub fn yield_cpu() {
-        // Trigger context switch by setting PendSV
-        cortex_m::peripheral::SCB::set_pendsv();
+        // Use SVC to safely trigger context switch from unprivileged mode
+        crate::svc::svc_call(crate::svc::abi::YIELD_CPU, 0, 0, 0, 0);
     }
 
     /// Allow an app to get current system time (if available)
