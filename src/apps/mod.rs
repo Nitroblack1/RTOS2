@@ -10,6 +10,7 @@ pub mod fibonacci;
 pub mod gpio_monitor;
 pub mod led_blinker;
 pub mod math_calculator;
+pub mod mmio_test;     // MMIO Access Test - Tests hardware access prevention
 pub mod network_stack;
 pub mod power_manager; // 🚀 10번째 앱 - 진짜 링크 타임 디스커버리 검증!
 pub mod sensor_reader; // NEW APP ADDED AUTOMATICALLY!
