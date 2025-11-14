@@ -2708,14 +2708,12 @@ mod sched {
                 rprintln!("[PendSV] Setting NEXT_TASK_PSP to: 0x{:08x}", target_psp);
 
                 // Use addr_of_mut for safer static access
-                unsafe {
-                    let psp_ptr = core::ptr::addr_of_mut!(NEXT_TASK_PSP);
-                    core::ptr::write_volatile(psp_ptr, target_psp);
-
-                    // Verify the write
-                    let written_value = core::ptr::read_volatile(psp_ptr);
-                    rprintln!("[PendSV] NEXT_TASK_PSP verification: written=0x{:08x}", written_value);
-                }
+                let psp_ptr = core::ptr::addr_of_mut!(NEXT_TASK_PSP);
+                core::ptr::write_volatile(psp_ptr, target_psp);
+                
+                // Verify the write
+                let written_value = core::ptr::read_volatile(psp_ptr);
+                rprintln!("[PendSV] NEXT_TASK_PSP verification: written=0x{:08x}", written_value);
 
                 return core::ptr::addr_of_mut!(TCBS[0].r4);
             } else {
