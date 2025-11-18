@@ -18,6 +18,14 @@ pub unsafe extern "C" fn led_blinker() -> ! {
     loop {
         counter = counter.wrapping_add(1);
 
+        // Increment activity counter for performance monitoring
+        increment_activity(0); // Task ID 0
+
+        // Increment loop iterations every 100 iterations to reduce overhead
+        if counter % 100 == 0 {
+            increment_iterations(0);
+        }
+
         // Use new Driver Framework for secure GPIO access
         // Port A (0), Pin 5 (built-in LED on many STM32 boards)
         if counter % 2000 == 0 {

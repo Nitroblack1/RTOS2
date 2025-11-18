@@ -157,6 +157,21 @@ pub const PROCESS_SLOT_SIZE: u32 = 8 * 1024;          // 8KB per process slot
 pub const MAX_PROCESSES: usize = (PROCESS_RAM_SIZE / PROCESS_SLOT_SIZE) as usize; // 12 processes
 
 // Grant region size per process (TockOS style)
+
+// ───────────── PERFORMANCE MONITORING & TASK TRACKING ─────────────
+
+// SysTick based global time counter (1ms resolution)
+static mut SYSTICK_COUNTER: u32 = 0;
+
+// Task execution statistics (support up to 8 tasks)
+static mut TASK_EXEC_COUNT: [u32; 8] = [0; 8];           // Execution count per task
+static mut TASK_EXEC_TIME: [u32; 8] = [0; 8];            // Total execution time per task (ms)
+static mut TASK_START_TIME: [u32; 8] = [0; 8];           // Start time of current execution
+static mut CURRENT_TASK_ID: u8 = 255;                    // Currently executing task (255 = idle)
+
+// Activity counters - simple incremental counters for each task
+static mut TASK_ACTIVITY_COUNTERS: [u32; 8] = [0; 8];    // Simple activity counters
+static mut TASK_LOOP_ITERATIONS: [u32; 8] = [0; 8];      // Loop iteration counts per task
 pub const GRANT_REGION_SIZE: u32 = 1024;              // 1KB grant per process
 
 static APP_REGISTRY_INIT_GUARD: AtomicBool = AtomicBool::new(false);
@@ -397,15 +412,34 @@ unsafe fn UsageFault() -> ! {
 
 #[cortex_m_rt::exception]
 unsafe fn MemoryManagement() -> ! {
-    // Signal memory fault with LED instead of potentially dangerous rprintln! calls
+    // 🚨 MPU VIOLATION DETECTED! 🚨 - This proves MPU is working!
+
+    // Get fault address from MMFAR (Memory Management Fault Address Register)
+    const SCB_MMFAR: *const u32 = 0xE000_ED34 as *const u32;
+    let fault_addr = core::ptr::read_volatile(SCB_MMFAR);
+
+    // Get current task via public function
+    let current_task = sched::get_current_task();
+
+    // Log the MPU violation - this PROVES MPU is working!
+    rprintln!("🚨 MPU VIOLATION DETECTED! 🚨");
+    rprintln!("Task: {} violated memory access", current_task);
+    rprintln!("Fault Address: 0x{:08x}", fault_addr);
+    rprintln!("✅ MPU successfully blocked illegal access!");
+    rprintln!("✅ Memory protection is ACTIVE and WORKING!");
+
+    // Signal memory fault with LED too
     crate::led_control::signal_memory_fault();
 
-    // Clear the fault status register for potential recovery
+    // Clear the fault status register
     const SCB_MMFSR: *mut u8 = 0xE000_ED28 as *mut u8;
     core::ptr::write_volatile(SCB_MMFSR, 0xFF);
 
-    // System entering safe mode - halting execution
-    loop {}
+    // For demonstration, halt the system (MPU violation = security breach)
+    rprintln!("System halted due to memory protection violation");
+    loop {
+        cortex_m::asm::wfi();
+    }
 }
 // for debug
 
@@ -2610,17 +2644,14 @@ mod sched {
         // Skip detailed verification to prevent RTT hang
         // let verification_result = unsafe { super::process_mgmt::run_tock_verification() };
 
-        // RTT testing with MPU fix applied
+        // Minimal idle loop - no RTT output to prevent hang
         rprintln!("[KERNEL] Starting...");
 
         let mut counter = 0u32;
         loop {
             counter = counter.wrapping_add(1);
 
-            // Test RTT at regular intervals after MPU fix
-            if counter % 1000000 == 0 {  // Every 1M iterations (~30 seconds)
-                rprintln!("[IDLE] {}", counter / 1000000);
-            }
+            // NO RTT OUTPUT to prevent hang issues
 
             // Trigger PendSV for first context switch much earlier
             if counter == 10000 {
@@ -2680,6 +2711,9 @@ mod sched {
 
                 // Mark task 0 as running
                 TCBS[0].state = TaskState::Running;
+
+                // Record first task start for performance monitoring
+                crate::record_task_start(0);
 
                 // TockOS style: Configure MPU for first process with ProcessSlot sync
                 match super::process_mgmt::sync_process_slot_with_tcb(0) {
@@ -2766,6 +2800,10 @@ mod sched {
                     loop {}
                 }
 
+
+                // Record task end for current task and start for next task
+                crate::record_task_end(current_task as u8);
+                crate::record_task_start(next_task as u8);
 
                 // Update task states
                 TCBS[current_task].state = TaskState::Ready;
@@ -3061,6 +3099,11 @@ mod sched {
         static mut SYSTICK_COUNT: u32 = 0;
         *SYSTICK_COUNT += 1;
 
+        // Update global performance monitoring counter
+        unsafe {
+            crate::SYSTICK_COUNTER = crate::SYSTICK_COUNTER.wrapping_add(1);
+        }
+
         // 10번마다 스택 카나리 체크 (너무 자주하면 RTT 버퍼 오버플로우)
         if (*SYSTICK_COUNT % 10) == 0 {
             unsafe { check_stack_canary(); }
@@ -3071,6 +3114,11 @@ mod sched {
     }
 
     // 🚀 공개 API: 동적 태스크 스폰을 위한 외부 인터페이스
+    /// Get current task ID for debugging/monitoring
+    pub fn get_current_task() -> usize {
+        unsafe { CURR }
+    }
+
     pub fn spawn_dynamic_task(
         entry_fn: unsafe extern "C" fn() -> !,
         name: &'static str,
@@ -3270,6 +3318,20 @@ pub mod app_syscalls {
         // For now, silently ignore all debug_print calls
 
         // RTT가 근본적으로 문제가 있으므로 모든 출력 비활성화
+    }
+
+    /// Increment activity counter for current task (performance monitoring)
+    pub fn increment_activity(task_id: u8) {
+        unsafe {
+            super::increment_task_activity(task_id);
+        }
+    }
+
+    /// Increment loop iteration counter for current task
+    pub fn increment_iterations(task_id: u8) {
+        unsafe {
+            super::increment_task_iterations(task_id);
+        }
     }
 
     /// Allow an app to yield CPU (cooperative scheduling)
@@ -4097,6 +4159,10 @@ fn main() -> ! {
 
     rprintln!("[MAIN] Board initialization complete");
 
+    // Initialize performance monitoring system
+    rprintln!("[MAIN] Initializing performance monitoring...");
+    unsafe { init_performance_monitoring(); }
+
     // Initialize MPU for memory protection (Tock OS 3-tier trust model)
     rprintln!("[MAIN] Initializing MPU for memory protection...");
     match mpu::init_mpu() {
@@ -4149,3 +4215,66 @@ fn main() -> ! {
 
     sched::start();
 }
+
+// ═══════════════ PERFORMANCE MONITORING SYSTEM ═══════════════
+
+/// Initialize SysTick timer for performance monitoring (1ms resolution)
+unsafe fn init_performance_monitoring() {
+    // STM32F446RE runs at 16MHz by default
+    // SysTick reload value for 1ms: 16MHz / 1000 = 16000
+    const SYSTICK_RELOAD_VALUE: u32 = 16000 - 1;
+
+    // Get SysTick peripheral
+    let mut syst = cortex_m::Peripherals::take().unwrap().SYST;
+
+    // Configure SysTick for 1ms interrupts
+    syst.set_clock_source(cortex_m::peripheral::syst::SystClkSource::Core);
+    syst.set_reload(SYSTICK_RELOAD_VALUE);
+    syst.clear_current();
+    syst.enable_interrupt();
+    syst.enable_counter();
+
+    rprintln!("[PERF] SysTick configured for 1ms resolution (16MHz / 16000)");
+    rprintln!("[PERF] Performance monitoring active");
+}
+
+/// Get current system time in milliseconds
+pub fn get_system_time_ms() -> u32 {
+    unsafe { SYSTICK_COUNTER }
+}
+
+/// Record task start (called during context switch)
+pub unsafe fn record_task_start(task_id: u8) {
+    if task_id < 8 {
+        let current_time = SYSTICK_COUNTER;
+        TASK_START_TIME[task_id as usize] = current_time;
+        CURRENT_TASK_ID = task_id;
+        TASK_EXEC_COUNT[task_id as usize] = TASK_EXEC_COUNT[task_id as usize].wrapping_add(1);
+    }
+}
+
+/// Record task end and accumulate execution time
+pub unsafe fn record_task_end(task_id: u8) {
+    if task_id < 8 {
+        let current_time = SYSTICK_COUNTER;
+        let start_time = TASK_START_TIME[task_id as usize];
+        let execution_time = current_time.saturating_sub(start_time);
+        TASK_EXEC_TIME[task_id as usize] = TASK_EXEC_TIME[task_id as usize].wrapping_add(execution_time);
+    }
+}
+
+/// Increment activity counter for a task (called from app loop)
+pub unsafe fn increment_task_activity(task_id: u8) {
+    if task_id < 8 {
+        TASK_ACTIVITY_COUNTERS[task_id as usize] = TASK_ACTIVITY_COUNTERS[task_id as usize].wrapping_add(1);
+    }
+}
+
+/// Increment loop iteration counter for a task
+pub unsafe fn increment_task_iterations(task_id: u8) {
+    if task_id < 8 {
+        TASK_LOOP_ITERATIONS[task_id as usize] = TASK_LOOP_ITERATIONS[task_id as usize].wrapping_add(1);
+    }
+}
+
+

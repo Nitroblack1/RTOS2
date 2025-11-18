@@ -20,6 +20,14 @@ pub unsafe extern "C" fn fibonacci() -> ! {
     loop {
         iterations = iterations.wrapping_add(1);
 
+        // Increment activity counter for performance monitoring
+        crate::app_syscalls::increment_activity(1); // Task ID 1
+
+        // Increment loop iterations every 200 iterations
+        if iterations % 200 == 0 {
+            crate::app_syscalls::increment_iterations(1);
+        }
+
         // Compute next fibonacci number
         let next = fib_a.wrapping_add(fib_b);
         fib_a = fib_b;
