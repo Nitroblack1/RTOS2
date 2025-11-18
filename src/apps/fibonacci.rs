@@ -9,7 +9,8 @@ static mut APP1_FIB_COUNT: u32 = 0;
 
 #[app(id = 1, stack_size = 512, name = "fibonacci")]
 pub unsafe extern "C" fn fibonacci() -> ! {
-    // Removed rprintln! to prevent unprivileged interrupt disable
+    // First execution log (only once)
+    crate::app_syscalls::debug_print(1, "Fibonacci app started");
 
     use crate::app_syscalls::yield_cpu;
     let mut fib_a = 0u32;

@@ -5,6 +5,9 @@ use app_macros::app;
 
 #[app(id = 0, stack_size = 256, name = "led_blinker")]
 pub unsafe extern "C" fn led_blinker() -> ! {
+    // First execution log (only once)
+    debug_print(0, "LED Blinker started");
+
     // Demonstrate new Driver Framework usage
     let task_id = 0; // This task's ID
     let mut counter = 0u32;

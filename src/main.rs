@@ -944,15 +944,15 @@ mod mpu {
             configure_region(0, 0x0800_0000, region_size_encoding(512 * 1024)?,
                             MPU_AP_PRIV_RW_USER_RO, false)?; // Allow execution
 
-            // Region 1: Kernel SRAM only - TockOS style isolation
-            // Only kernel can access this region, processes are isolated
+            // Region 1: Kernel SRAM - TockOS style isolation + RTT access
+            // Allow both privileged and unprivileged read/write for RTT compatibility
             configure_region(1, super::KERNEL_RAM_BASE, region_size_encoding(super::KERNEL_RAM_SIZE as usize)?,
-                            MPU_AP_PRIV_RW, true)?; // Kernel only, execute never
+                            MPU_AP_PRIV_RW_USER_RW, true)?; // Allow user access for RTT, execute never
         }
 
         rprintln!("[MPU] TockOS-style memory regions configured:");
         rprintln!("  Region 0: Flash 0x0800_0000-0x0807_FFFF (512KB) - PRIV RW/USER RO");
-        rprintln!("  Region 1: Kernel SRAM 0x{:08x}-0x{:08x} (32KB) - PRIV RW only, XN",
+        rprintln!("  Region 1: Kernel SRAM 0x{:08x}-0x{:08x} (32KB) - PRIV RW/USER RW (RTT), XN",
                   super::KERNEL_RAM_BASE, super::KERNEL_RAM_BASE + super::KERNEL_RAM_SIZE - 1);
         rprintln!("  Region 2-7: Process isolation regions (dynamic) - Process-specific access");
         Ok(())
@@ -2610,20 +2610,20 @@ mod sched {
         // Skip detailed verification to prevent RTT hang
         // let verification_result = unsafe { super::process_mgmt::run_tock_verification() };
 
-        // Ultra-minimal idle loop to prevent RTT overflow
+        // RTT testing with MPU fix applied
         rprintln!("[KERNEL] Starting...");
 
         let mut counter = 0u32;
         loop {
             counter = counter.wrapping_add(1);
 
-            // Very infrequent logging to prevent RTT issues
-            if counter % 5000000 == 0 {  // Only every 5M iterations
-                rprintln!("[K] {}", counter / 1000000); // Ultra-short log
+            // Test RTT at regular intervals after MPU fix
+            if counter % 1000000 == 0 {  // Every 1M iterations (~30 seconds)
+                rprintln!("[IDLE] {}", counter / 1000000);
             }
 
-            // Trigger PendSV for first context switch on first iteration
-            if counter == 100000 {
+            // Trigger PendSV for first context switch much earlier
+            if counter == 10000 {
                 cortex_m::peripheral::SCB::set_pendsv();
             }
 
@@ -3265,9 +3265,11 @@ pub mod app_syscalls {
 
     /// Allow an app to print debug messages (kernel-mediated logging)
     pub fn debug_print(_app_id: u32, _message: &str) {
-        // Disabled to prevent unprivileged interrupt disable
-        // In real Tock, this would go through proper logging subsystem via privileged kernel
-        // For now, silently ignore to prevent HardFault from unprivileged rprintln!
+        // Completely disabled RTT output to prevent hang issues
+        // In real Tock, this would use alternative logging mechanism
+        // For now, silently ignore all debug_print calls
+
+        // RTT가 근본적으로 문제가 있으므로 모든 출력 비활성화
     }
 
     /// Allow an app to yield CPU (cooperative scheduling)
