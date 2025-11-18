@@ -16,4 +16,9 @@ pub mod sensor_reader; // NEW APP ADDED AUTOMATICALLY!
 pub mod timer;
 pub mod watchdog; // 링크 타임 디스커버리로 자동 발견! // 🚀 11번째 앱 - 최종 자동 등록 검증!
 
+// IPC and shared memory test apps
+pub mod producer; // Producer-Consumer test
+pub mod consumer; // Consumer app
+pub mod shared_counter; // Race condition and synchronization test
+
 // No manual registration arrays needed - apps automatically discovered!

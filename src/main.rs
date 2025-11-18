@@ -120,6 +120,34 @@ unsafe fn discover_linker_registered_apps() -> usize {
             stack_size: 4096,  // 1024 → 4096 바이트로 대폭 확대 (재귀 가능성)
             stack_ptr_fn: None,
         },
+        // IPC and shared memory test apps
+        AppMetadata {
+            id: 10,
+            name: "producer",
+            entry: crate::apps::producer::producer as usize,
+            entry_fn: Some(crate::apps::producer::producer),
+            stack_ptr: 0,
+            stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
+            stack_ptr_fn: None,
+        },
+        AppMetadata {
+            id: 11,
+            name: "consumer",
+            entry: crate::apps::consumer::consumer as usize,
+            entry_fn: Some(crate::apps::consumer::consumer),
+            stack_ptr: 0,
+            stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
+            stack_ptr_fn: None,
+        },
+        AppMetadata {
+            id: 12,
+            name: "shared_counter",
+            entry: crate::apps::shared_counter::shared_counter as usize,
+            entry_fn: Some(crate::apps::shared_counter::shared_counter),
+            stack_ptr: 0,
+            stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
+            stack_ptr_fn: None,
+        },
     ];
 
     let app_count = discovered_apps.len().min(MAX_APPS);
@@ -745,7 +773,7 @@ mod mpu {
     const MPU_AP_NO_ACCESS: u32 = 0b000;
     const MPU_AP_PRIV_RW: u32 = 0b001;      // Privileged R/W, unprivileged no access
     const MPU_AP_PRIV_RW_USER_RO: u32 = 0b010; // Privileged R/W, unprivileged R
-    const MPU_AP_PRIV_RW_USER_RW: u32 = 0b011; // Privileged R/W, unprivileged R/W
+    pub const MPU_AP_PRIV_RW_USER_RW: u32 = 0b011; // Privileged R/W, unprivileged R/W
 
     pub fn init_mpu() -> Result<(), &'static str> {
         unsafe {
@@ -972,6 +1000,393 @@ mod mpu {
 
         rprintln!("[MPU] Protection test completed");
     }
+
+    /// Disable a specific MPU region
+    pub unsafe fn disable_mpu_region(region_num: u8) -> Result<(), &'static str> {
+        if region_num >= 16 {
+            return Err("Invalid region number (must be 0-15)");
+        }
+
+        unsafe {
+            // Select region
+            core::ptr::write_volatile(MPU_RNR, region_num as u32);
+
+            // Disable region by clearing enable bit
+            core::ptr::write_volatile(MPU_RASR, 0);
+
+            // Memory barrier
+            core::arch::asm!("dsb", "isb", options(nomem, nostack));
+        }
+
+        rprintln!("[MPU] Disabled region {}", region_num);
+        Ok(())
+    }
+
+    /// Configure a specific MPU region with given parameters
+    pub unsafe fn configure_mpu_region(
+        region_num: u8,
+        base_addr: u32,
+        size_bytes: u32,
+        access_permission: u32,
+        execute_never: bool,
+    ) -> Result<(), &'static str> {
+        if region_num >= 16 {
+            return Err("Invalid region number (must be 0-15)");
+        }
+
+        let size_encoding = region_size_encoding(size_bytes as usize)?;
+
+        unsafe {
+            // Select region
+            core::ptr::write_volatile(MPU_RNR, region_num as u32);
+
+            // Set base address (must be aligned to region size)
+            core::ptr::write_volatile(MPU_RBAR, base_addr);
+
+            // Set region attributes
+            let mut rasr = MPU_RASR_ENABLE |
+                          (size_encoding << MPU_RASR_SIZE_SHIFT) |
+                          (access_permission << MPU_RASR_AP_SHIFT);
+
+            if execute_never {
+                rasr |= MPU_RASR_XN;
+            }
+
+            core::ptr::write_volatile(MPU_RASR, rasr);
+
+            // Memory barrier
+            core::arch::asm!("dsb", "isb", options(nomem, nostack));
+        }
+
+        rprintln!("[MPU] Configured region {} at 0x{:08x} (size: {} bytes)",
+                  region_num, base_addr, size_bytes);
+        Ok(())
+    }
+}
+
+// ───────────── IPC & SHARED MEMORY SYSTEM ─────────────
+
+mod ipc {
+    use rtt_target::rprintln;
+    use core::sync::atomic::{AtomicUsize, Ordering};
+
+    // Shared memory configuration
+    pub const SHARED_MEMORY_POOL_SIZE: usize = 4096; // 4KB shared memory pool
+    pub const MAX_SHARED_REGIONS: usize = 8;
+    pub const MAX_MESSAGE_QUEUES: usize = 16;
+    pub const MESSAGE_QUEUE_SIZE: usize = 16;
+    pub const MAX_MESSAGE_PAYLOAD: usize = 128;
+
+    static mut SHARED_MEMORY_POOL: [u8; SHARED_MEMORY_POOL_SIZE] = [0; SHARED_MEMORY_POOL_SIZE];
+    static SHARED_MEMORY_OFFSET: AtomicUsize = AtomicUsize::new(0);
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct SharedMemoryRegion {
+        pub id: u32,
+        pub base_addr: *mut u8,
+        pub size: u32,
+        pub owner_app_id: u32,
+        pub permissions: SharedMemoryPermission,
+        pub is_active: bool,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct SharedMemoryPermission {
+        pub read: bool,
+        pub write: bool,
+    }
+
+    impl Default for SharedMemoryRegion {
+        fn default() -> Self {
+            Self {
+                id: 0,
+                base_addr: core::ptr::null_mut(),
+                size: 0,
+                owner_app_id: 0,
+                permissions: SharedMemoryPermission { read: false, write: false },
+                is_active: false,
+            }
+        }
+    }
+
+    static mut SHARED_REGIONS: [SharedMemoryRegion; MAX_SHARED_REGIONS] = [SharedMemoryRegion {
+        id: 0,
+        base_addr: core::ptr::null_mut(),
+        size: 0,
+        owner_app_id: 0,
+        permissions: SharedMemoryPermission { read: false, write: false },
+        is_active: false,
+    }; MAX_SHARED_REGIONS];
+
+    static mut NEXT_REGION_ID: u32 = 1;
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Message {
+        pub sender_id: u32,
+        pub msg_type: u32,
+        pub payload_len: usize,
+        pub payload: [u8; MAX_MESSAGE_PAYLOAD],
+    }
+
+    impl Default for Message {
+        fn default() -> Self {
+            Self {
+                sender_id: 0,
+                msg_type: 0,
+                payload_len: 0,
+                payload: [0; MAX_MESSAGE_PAYLOAD],
+            }
+        }
+    }
+
+    #[derive(Copy, Clone)]
+    pub struct MessageQueue {
+        pub app_id: u32,
+        pub messages: [Message; MESSAGE_QUEUE_SIZE],
+        pub head: usize,
+        pub tail: usize,
+        pub count: usize,
+    }
+
+    impl Default for MessageQueue {
+        fn default() -> Self {
+            Self {
+                app_id: 0,
+                messages: [Message::default(); MESSAGE_QUEUE_SIZE],
+                head: 0,
+                tail: 0,
+                count: 0,
+            }
+        }
+    }
+
+    static mut MESSAGE_QUEUES: [MessageQueue; MAX_MESSAGE_QUEUES] = [MessageQueue {
+        app_id: 0,
+        messages: [Message {
+            sender_id: 0,
+            msg_type: 0,
+            payload_len: 0,
+            payload: [0; MAX_MESSAGE_PAYLOAD],
+        }; MESSAGE_QUEUE_SIZE],
+        head: 0,
+        tail: 0,
+        count: 0,
+    }; MAX_MESSAGE_QUEUES];
+
+    pub unsafe fn request_shared_memory(size: u32) -> Result<u32, &'static str> {
+        if size == 0 || size > SHARED_MEMORY_POOL_SIZE as u32 {
+            return Err("Invalid shared memory size");
+        }
+
+        let aligned_size = ((size + 3) / 4) * 4; // 4-byte alignment
+        let current_offset = SHARED_MEMORY_OFFSET.load(Ordering::Relaxed);
+
+        if current_offset + aligned_size as usize > SHARED_MEMORY_POOL_SIZE {
+            return Err("Shared memory pool exhausted");
+        }
+
+        // Find empty slot in shared regions
+        for i in 0..MAX_SHARED_REGIONS {
+            if !SHARED_REGIONS[i].is_active {
+                let region_id = NEXT_REGION_ID;
+                NEXT_REGION_ID += 1;
+
+                let base_addr = SHARED_MEMORY_POOL.as_mut_ptr().add(current_offset);
+
+                SHARED_REGIONS[i] = SharedMemoryRegion {
+                    id: region_id,
+                    base_addr,
+                    size: aligned_size,
+                    owner_app_id: get_current_app_id(),
+                    permissions: SharedMemoryPermission { read: true, write: true },
+                    is_active: true,
+                };
+
+                SHARED_MEMORY_OFFSET.store(current_offset + aligned_size as usize, Ordering::Relaxed);
+
+                // Configure MPU protection for the shared memory region
+                if let Err(e) = configure_shared_memory_mpu(region_id, base_addr, aligned_size, get_current_app_id()) {
+                    rprintln!("[IPC] Warning: Failed to configure MPU for shared memory: {}", e);
+                }
+
+                rprintln!("[IPC] Allocated shared memory region {} (size: {} bytes)", region_id, aligned_size);
+                return Ok(region_id);
+            }
+        }
+
+        Err("No available shared memory slots")
+    }
+
+    pub unsafe fn map_shared_memory(region_id: u32, source_app_id: u32) -> Result<*mut u8, &'static str> {
+        for i in 0..MAX_SHARED_REGIONS {
+            if SHARED_REGIONS[i].is_active &&
+               SHARED_REGIONS[i].id == region_id {
+               // 현재 앱이 소유자이거나, 다른 앱에서 공유 요청하는 경우 모두 허용
+
+                rprintln!("[IPC] Mapped shared memory region {} from app {} (owner: {})",
+                         region_id, source_app_id, SHARED_REGIONS[i].owner_app_id);
+                return Ok(SHARED_REGIONS[i].base_addr);
+            }
+        }
+
+        Err("Shared memory region not found")
+    }
+
+    pub unsafe fn unmap_shared_memory(region_id: u32) -> Result<(), &'static str> {
+        let current_app_id = get_current_app_id();
+
+        for i in 0..MAX_SHARED_REGIONS {
+            if SHARED_REGIONS[i].is_active &&
+               SHARED_REGIONS[i].id == region_id &&
+               SHARED_REGIONS[i].owner_app_id == current_app_id {
+
+                SHARED_REGIONS[i].is_active = false;
+
+                // Remove MPU protection
+                if let Err(e) = remove_shared_memory_mpu(region_id) {
+                    rprintln!("[IPC] Warning: Failed to remove MPU protection: {}", e);
+                }
+
+                rprintln!("[IPC] Unmapped shared memory region {}", region_id);
+                return Ok(());
+            }
+        }
+
+        Err("Cannot unmap: region not found or not owned")
+    }
+
+    pub unsafe fn send_message(target_app_id: u32, msg_type: u32, payload: &[u8]) -> Result<(), &'static str> {
+        if payload.len() > MAX_MESSAGE_PAYLOAD {
+            return Err("Message payload too large");
+        }
+
+        // Find target app's message queue
+        for i in 0..MAX_MESSAGE_QUEUES {
+            if MESSAGE_QUEUES[i].app_id == target_app_id ||
+               (MESSAGE_QUEUES[i].app_id == 0 && target_app_id != 0) {
+
+                // Initialize queue if it's the first message to this app
+                if MESSAGE_QUEUES[i].app_id == 0 {
+                    MESSAGE_QUEUES[i].app_id = target_app_id;
+                }
+
+                let queue = &mut MESSAGE_QUEUES[i];
+
+                if queue.count >= MESSAGE_QUEUE_SIZE {
+                    return Err("Message queue full");
+                }
+
+                // Create message
+                let mut message = Message::default();
+                message.sender_id = get_current_app_id();
+                message.msg_type = msg_type;
+                message.payload_len = payload.len();
+                message.payload[..payload.len()].copy_from_slice(payload);
+
+                // Add to queue
+                queue.messages[queue.tail] = message;
+                queue.tail = (queue.tail + 1) % MESSAGE_QUEUE_SIZE;
+                queue.count += 1;
+
+                rprintln!("[IPC] Message sent from app {} to app {} (type: {})",
+                         message.sender_id, target_app_id, msg_type);
+                return Ok(());
+            }
+        }
+
+        Err("No available message queue")
+    }
+
+    pub unsafe fn receive_message() -> Result<Message, &'static str> {
+        let current_app_id = get_current_app_id();
+
+        // Find current app's message queue
+        for i in 0..MAX_MESSAGE_QUEUES {
+            if MESSAGE_QUEUES[i].app_id == current_app_id && MESSAGE_QUEUES[i].count > 0 {
+                let queue = &mut MESSAGE_QUEUES[i];
+
+                let message = queue.messages[queue.head];
+                queue.head = (queue.head + 1) % MESSAGE_QUEUE_SIZE;
+                queue.count -= 1;
+
+                rprintln!("[IPC] Message received by app {} from app {} (type: {})",
+                         current_app_id, message.sender_id, message.msg_type);
+                return Ok(message);
+            }
+        }
+
+        Err("No messages available")
+    }
+
+    pub unsafe fn has_messages() -> bool {
+        let current_app_id = get_current_app_id();
+
+        for i in 0..MAX_MESSAGE_QUEUES {
+            if MESSAGE_QUEUES[i].app_id == current_app_id && MESSAGE_QUEUES[i].count > 0 {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn get_current_app_id() -> u32 {
+        unsafe {
+            // 현재 실행 중인 태스크의 ID를 TCB에서 가져옴
+            if super::sched::N_TASKS > 0 {
+                let current_idx = super::sched::CURR;
+                if current_idx < super::sched::MAX_APPS {
+                    return super::sched::TCBS[current_idx].app_id;
+                }
+            }
+            // 실제 로그에서 Producer는 task 5(index), app_id는 다를 수 있음
+            // 현재 실행 중인 태스크 인덱스를 기반으로 추정
+            super::sched::CURR as u32 + 1
+        }
+    }
+
+    /// Configure MPU for shared memory region
+    pub unsafe fn configure_shared_memory_mpu(region_id: u32, base_addr: *mut u8, size: u32, app_id: u32) -> Result<(), &'static str> {
+        // MPU 영역 8-15를 공유 메모리용으로 사용
+        let mpu_region = (region_id % 8) + 8;
+
+        if mpu_region > 15 {
+            return Err("MPU region index out of range");
+        }
+
+        // 공유 메모리는 읽기/쓰기 가능, 실행 불가로 설정
+        let access_permission = super::mpu::MPU_AP_PRIV_RW_USER_RW;
+        let execute_never = true;
+
+        super::mpu::configure_mpu_region(
+            mpu_region as u8,
+            base_addr as u32,
+            size,
+            access_permission,
+            execute_never,
+        )?;
+
+        rprintln!("[IPC-MPU] Configured shared memory MPU region {} for app {} (addr: 0x{:08x}, size: {})",
+                  mpu_region, app_id, base_addr as u32, size);
+
+        Ok(())
+    }
+
+    /// Remove MPU protection for shared memory region
+    pub unsafe fn remove_shared_memory_mpu(region_id: u32) -> Result<(), &'static str> {
+        let mpu_region = (region_id % 8) + 8;
+
+        if mpu_region > 15 {
+            return Err("MPU region index out of range");
+        }
+
+        // Disable the MPU region
+        super::mpu::disable_mpu_region(mpu_region as u8)?;
+
+        rprintln!("[IPC-MPU] Removed MPU protection for shared memory region {}", mpu_region);
+
+        Ok(())
+    }
 }
 
 // ───────────── SCHEDULER & TASKS ─────────────
@@ -982,7 +1397,7 @@ mod sched {
     use cortex_m_rt::exception;
     use rtt_target::rprintln;
 
-    const MAX_APPS: usize = super::MAX_APPS;
+    pub const MAX_APPS: usize = super::MAX_APPS;
     const KERNEL_STACK_WORDS: usize = 512; // Kernel needs more stack for complex operations
     const APP_STACK_POOL_WORDS: usize = super::APP_STACK_POOL_WORDS;
     const MIN_STACK_WORDS: usize = super::MIN_STACK_WORDS;
@@ -1047,7 +1462,7 @@ mod sched {
     #[derive(Copy, Clone)]
     struct StackPool([u32; APP_STACK_POOL_WORDS]);
 
-    static mut TCBS: [Tcb; MAX_APPS] = [Tcb {
+    pub static mut TCBS: [Tcb; MAX_APPS] = [Tcb {
         sp: 0,
         r4: 0,
         r5: 0,
@@ -1067,8 +1482,8 @@ mod sched {
     static mut KERNEL_STACK: KernelStack = KernelStack([0; KERNEL_STACK_WORDS]);
     static mut STACK_POOL: StackPool = StackPool([0; APP_STACK_POOL_WORDS]);
     static mut STACK_POOL_OFFSET: usize = 0;
-    static mut CURR: usize = 0;
-    static mut N_TASKS: usize = 0; // Dynamic task count
+    pub static mut CURR: usize = 0;
+    pub static mut N_TASKS: usize = 0; // Dynamic task count
 
     // 🚀 동적 스택 할당 추적 시스템
     #[derive(Copy, Clone, Debug)]
@@ -2115,6 +2530,48 @@ pub mod app_syscalls {
     // Future: Add capability-based access control here
     // pub fn gpio_write_with_capability(pin: GpioPin, value: bool, cap: &GpioCap) { ... }
     // pub fn timer_subscribe_with_capability(callback: fn(), cap: &TimerCap) { ... }
+
+    /// Request shared memory region
+    pub fn request_shared_memory(size: u32) -> Result<u32, &'static str> {
+        unsafe {
+            super::ipc::request_shared_memory(size)
+        }
+    }
+
+    /// Map shared memory from another app
+    pub fn map_shared_memory(region_id: u32, source_app_id: u32) -> Result<*mut u8, &'static str> {
+        unsafe {
+            super::ipc::map_shared_memory(region_id, source_app_id)
+        }
+    }
+
+    /// Unmap shared memory region
+    pub fn unmap_shared_memory(region_id: u32) -> Result<(), &'static str> {
+        unsafe {
+            super::ipc::unmap_shared_memory(region_id)
+        }
+    }
+
+    /// Send message to another app
+    pub fn send_message(target_app_id: u32, msg_type: u32, payload: &[u8]) -> Result<(), &'static str> {
+        unsafe {
+            super::ipc::send_message(target_app_id, msg_type, payload)
+        }
+    }
+
+    /// Receive message from message queue
+    pub fn receive_message() -> Result<super::ipc::Message, &'static str> {
+        unsafe {
+            super::ipc::receive_message()
+        }
+    }
+
+    /// Check if messages are available
+    pub fn has_messages() -> bool {
+        unsafe {
+            super::ipc::has_messages()
+        }
+    }
 }
 
 #[entry]
