@@ -5,9 +5,9 @@ use app_macros::app;
 use crate::app_syscalls::*;
 use rtt_target::rprintln;
 
-#[app(id = 11, stack_size = 2048, name = "consumer")]
+#[app(id = 11, stack_size = 4096, name = "consumer")]
 pub unsafe extern "C" fn consumer() -> ! {
-    rprintln!("[CONSUMER] Started - waiting for producer messages");
+    // rprintln!("[CONSUMER] Started - waiting for producer messages");
 
     let mut processed_count = 0u32;
 
@@ -31,10 +31,10 @@ pub unsafe extern "C" fn consumer() -> ! {
                             Ok(ptr) => {
                                 shared_ptr = ptr as *mut u32;
                                 mapped = true;
-                                rprintln!("[CONSUMER] Mapped shared memory at: 0x{:08x}", ptr as u32);
+                                // rprintln!("[CONSUMER] Mapped shared memory at: 0x{:08x}", ptr as u32);
                             },
                             Err(e) => {
-                                rprintln!("[CONSUMER] Failed to map shared memory: {}", e);
+                                // rprintln!("[CONSUMER] Failed to map shared memory: {}", e);
                                 continue;
                             }
                         }
@@ -50,32 +50,32 @@ pub unsafe extern "C" fn consumer() -> ! {
                             processed_count = processed_count.wrapping_add(1);
 
                             // Debug log for first few messages
-                            if processed_count <= 3 {
-                                rprintln!("[CONSUMER] Read data: {},{},{}", value1, value2, value3);
+                            if processed_count == 1 {
+                                rprintln!("[CONSUMER] OK");
                             }
 
                             // Verify data integrity
                             if value1 == iteration && value2 == iteration * 2 && value3 == iteration * 3 {
-                                if processed_count <= 3 || processed_count % 25 == 0 {
-                                    rprintln!("[CONSUMER] ✓ Message #{} processed", iteration);
+                                if processed_count == 1 {
+                                    rprintln!("[CONSUMER] Message OK");
                                 }
                             } else {
-                                rprintln!("[CONSUMER] ✗ Data integrity error! Msg #{}", iteration);
+                                // rprintln!("[CONSUMER] ✗ Data integrity error! Msg #{}", iteration);
                             }
                         }
                     }
 
                     // Send acknowledgment back to producer occasionally
-                    if processed_count % 25 == 0 {
+                    if processed_count % 100 == 0 {
                         let ack_payload = [(processed_count & 0xFF) as u8];
                         match send_message(5, 2, &ack_payload) { // Send ACK to producer (app ID 5)
-                            Ok(_) => rprintln!("[CONSUMER] Sent ACK for {} processed messages", processed_count),
-                            Err(e) => rprintln!("[CONSUMER] Failed to send ACK: {}", e),
+                            Ok(_) => {}, // rprintln!("[CONSUMER] Sent ACK for {} processed messages", processed_count),
+                            Err(e) => {}, // rprintln!("[CONSUMER] Failed to send ACK: {}", e),
                         }
                     }
                 },
                 Err(e) => {
-                    rprintln!("[CONSUMER] Failed to receive message: {}", e);
+                    // rprintln!("[CONSUMER] Failed to receive message: {}", e);
                 }
             }
         }
@@ -88,5 +88,10 @@ pub unsafe extern "C" fn consumer() -> ! {
 
         // Yield to allow other apps to run
         yield_cpu();
+
+        // Add delay to slow down processing
+        for _ in 0..50000 {
+            cortex_m::asm::nop();
+        }
     }
 }

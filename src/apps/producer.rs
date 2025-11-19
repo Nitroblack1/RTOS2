@@ -5,20 +5,20 @@ use app_macros::app;
 use crate::app_syscalls::*;
 use rtt_target::rprintln;
 
-#[app(id = 10, stack_size = 2048, name = "producer")]
+#[app(id = 10, stack_size = 4096, name = "producer")]
 pub unsafe extern "C" fn producer() -> ! {
-    rprintln!("[PRODUCER] Started - testing IPC and shared memory");
+    // rprintln!("[PRODUCER] Started - testing IPC and shared memory");
 
     let mut iteration = 0u32;
 
     // Request shared memory region (256 bytes)
     let shared_region = match request_shared_memory(256) {
         Ok(region_id) => {
-            rprintln!("[PRODUCER] Allocated shared memory region: {}", region_id);
+            // rprintln!("[PRODUCER] Allocated shared memory region: {}", region_id);
             region_id
         },
         Err(e) => {
-            rprintln!("[PRODUCER] Failed to allocate shared memory: {}", e);
+            // rprintln!("[PRODUCER] Failed to allocate shared memory: {}", e);
             loop { yield_cpu(); }
         }
     };
@@ -26,11 +26,11 @@ pub unsafe extern "C" fn producer() -> ! {
     // Get pointer to shared memory (자신이 생성한 공유 메모리는 바로 매핑 가능)
     let shared_ptr = match map_shared_memory(shared_region, 10) { // Map from our own app (ID 10)
         Ok(ptr) => {
-            rprintln!("[PRODUCER] Mapped shared memory at: 0x{:08x}", ptr as u32);
+            // rprintln!("[PRODUCER] Mapped shared memory at: 0x{:08x}", ptr as u32);
             ptr as *mut u32
         },
         Err(e) => {
-            rprintln!("[PRODUCER] Failed to map shared memory: {}", e);
+            // rprintln!("[PRODUCER] Failed to map shared memory: {}", e);
             loop { yield_cpu(); }
         }
     };
@@ -45,8 +45,8 @@ pub unsafe extern "C" fn producer() -> ! {
             core::ptr::write_volatile(shared_ptr.add(2), iteration * 3);
 
             // Debug log for first few iterations
-            if iteration <= 3 {
-                rprintln!("[PRODUCER] Wrote data: {}, {}, {}", iteration, iteration * 2, iteration * 3);
+            if iteration == 1 {
+                rprintln!("[PRODUCER] OK");
             }
         }
 
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn producer() -> ! {
 
         match send_message(6, 1, &payload) { // Send to consumer (actual app ID 6)
             Ok(_) => {
-                if iteration % 25 == 0 {
+                if iteration % 100 == 0 {
                     rprintln!("[PRODUCER] Sent message #{}", iteration);
                 }
             },
@@ -73,8 +73,8 @@ pub unsafe extern "C" fn producer() -> ! {
         // Yield to allow other apps to run
         yield_cpu();
 
-        // Small delay
-        for _ in 0..10000 {
+        // Longer delay for slower logging
+        for _ in 0..100000 {
             cortex_m::asm::nop();
         }
     }

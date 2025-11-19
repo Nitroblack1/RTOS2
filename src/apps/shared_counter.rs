@@ -5,7 +5,7 @@ use app_macros::app;
 use crate::app_syscalls::*;
 use rtt_target::rprintln;
 
-#[app(id = 12, stack_size = 2048, name = "shared_counter")]
+#[app(id = 12, stack_size = 4096, name = "shared_counter")]
 pub unsafe extern "C" fn shared_counter() -> ! {
     rprintln!("[SHARED_COUNTER] Started - testing race conditions");
 
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn shared_counter() -> ! {
                 local_increments += 1;
 
                 // Log occasionally
-                if local_increments % 100 == 0 {
+                if local_increments % 500 == 0 {
                     rprintln!("[SHARED_COUNTER] Local: {}", local_increments);
                 }
             }
@@ -95,7 +95,7 @@ pub unsafe extern "C" fn shared_counter() -> ! {
         }
 
         // Send status message to other apps occasionally
-        if local_increments % 100 == 0 && local_increments > 0 {
+        if local_increments % 500 == 0 && local_increments > 0 {
             let payload = [
                 (local_increments & 0xFF) as u8,
                 ((local_increments >> 8) & 0xFF) as u8,
@@ -109,8 +109,8 @@ pub unsafe extern "C" fn shared_counter() -> ! {
 
         yield_cpu();
 
-        // Longer delay to reduce contention
-        for _ in 0..5000 {
+        // Longer delay to reduce contention and slow down logs
+        for _ in 0..50000 {
             cortex_m::asm::nop();
         }
     }
