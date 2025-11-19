@@ -2239,16 +2239,16 @@ mod sched {
                     DEBUG_COUNTER += 1;
                 }
 
-                // Map specific apps to MPU regions: Producer(10)->0, Consumer(11)->1, SharedCounter(12)->2
+                // Map specific apps to MPU regions based on actual runtime app_id values
                 let mpu_region = match app_id {
-                    10 => Some(0), // Producer -> MPU region 0 (App memory slot 0)
-                    11 => Some(1), // Consumer -> MPU region 1 (App memory slot 1)
-                    12 => Some(2), // Shared Counter -> MPU region 2 (App memory slot 2)
-                    _ => None,     // Other apps don't get isolated memory
+                    5 => Some(0), // Producer (actual runtime id=5) -> MPU region 0
+                    6 => Some(1), // Consumer (actual runtime id=6) -> MPU region 1
+                    7 => Some(2), // Shared Counter (actual runtime id=7) -> MPU region 2
+                    _ => None,    // Other apps don't get isolated memory
                 };
 
                 if let Some(region_id) = mpu_region {
-                    match crate::mpu::switch_mpu_context(app_id) {
+                    match crate::mpu::switch_mpu_context(region_id) {
                         Ok(_) => {
                             rprintln!("[MPU-ISOLATE] Switched to app {} MPU context (region {})", app_id, region_id);
                         },
