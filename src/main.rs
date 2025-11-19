@@ -148,16 +148,16 @@ unsafe fn discover_linker_registered_apps() -> usize {
             stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
             stack_ptr_fn: None,
         },
-        // Phase 2: Memory protection testing
-        AppMetadata {
-            id: 15,
-            name: "memory_violator",
-            entry: crate::apps::memory_violator::memory_violator as usize,
-            entry_fn: Some(crate::apps::memory_violator::memory_violator),
-            stack_ptr: 0,
-            stack_size: 1024,  // 384 → 1024 바이트로 증가 (안전성)
-            stack_ptr_fn: None,
-        },
+        // Phase 2: Memory protection testing - TEMPORARILY DISABLED
+        // AppMetadata {
+        //     id: 15,
+        //     name: "memory_violator",
+        //     entry: crate::apps::memory_violator::memory_violator as usize,
+        //     entry_fn: Some(crate::apps::memory_violator::memory_violator),
+        //     stack_ptr: 0,
+        //     stack_size: 1024,  // 384 → 1024 바이트로 증가 (안전성)
+        //     stack_ptr_fn: None,
+        // },
     ];
 
     let app_count = discovered_apps.len().min(MAX_APPS);
