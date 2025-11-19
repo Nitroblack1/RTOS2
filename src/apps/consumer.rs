@@ -33,7 +33,7 @@ pub unsafe extern "C" fn consumer() -> ! {
                                 mapped = true;
                                 // rprintln!("[CONSUMER] Mapped shared memory at: 0x{:08x}", ptr as u32);
                             },
-                            Err(e) => {
+                            Err(_e) => {
                                 // rprintln!("[CONSUMER] Failed to map shared memory: {}", e);
                                 continue;
                             }
@@ -70,11 +70,11 @@ pub unsafe extern "C" fn consumer() -> ! {
                         let ack_payload = [(processed_count & 0xFF) as u8];
                         match send_message(5, 2, &ack_payload) { // Send ACK to producer (app ID 5)
                             Ok(_) => {}, // rprintln!("[CONSUMER] Sent ACK for {} processed messages", processed_count),
-                            Err(e) => {}, // rprintln!("[CONSUMER] Failed to send ACK: {}", e),
+                            Err(_e) => {}, // rprintln!("[CONSUMER] Failed to send ACK: {}", e),
                         }
                     }
                 },
-                Err(e) => {
+                Err(_e) => {
                     // rprintln!("[CONSUMER] Failed to receive message: {}", e);
                 }
             }

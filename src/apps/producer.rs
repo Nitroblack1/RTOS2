@@ -17,7 +17,7 @@ pub unsafe extern "C" fn producer() -> ! {
             // rprintln!("[PRODUCER] Allocated shared memory region: {}", region_id);
             region_id
         },
-        Err(e) => {
+        Err(_e) => {
             // rprintln!("[PRODUCER] Failed to allocate shared memory: {}", e);
             loop { yield_cpu(); }
         }
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn producer() -> ! {
             // rprintln!("[PRODUCER] Mapped shared memory at: 0x{:08x}", ptr as u32);
             ptr as *mut u32
         },
-        Err(e) => {
+        Err(_e) => {
             // rprintln!("[PRODUCER] Failed to map shared memory: {}", e);
             loop { yield_cpu(); }
         }
@@ -59,8 +59,8 @@ pub unsafe extern "C" fn producer() -> ! {
                     rprintln!("[PRODUCER] Sent message #{}", iteration);
                 }
             },
-            Err(e) => {
-                rprintln!("[PRODUCER] Failed to send message: {}", e);
+            Err(_e) => {
+                rprintln!("[PRODUCER] Failed to send message: {}", _e);
             }
         }
 

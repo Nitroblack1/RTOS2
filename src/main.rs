@@ -1191,7 +1191,7 @@ mod ipc {
                 let region_id = NEXT_REGION_ID;
                 NEXT_REGION_ID += 1;
 
-                let base_addr = SHARED_MEMORY_POOL.as_mut_ptr().add(current_offset);
+                let base_addr = unsafe { core::ptr::addr_of_mut!(SHARED_MEMORY_POOL).cast::<u8>().add(current_offset) };
 
                 SHARED_REGIONS[i] = SharedMemoryRegion {
                     id: region_id,

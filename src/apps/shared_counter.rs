@@ -10,7 +10,7 @@ pub unsafe extern "C" fn shared_counter() -> ! {
     rprintln!("[SHARED_COUNTER] Started - testing race conditions");
 
     // Try to get or create shared counter region
-    let mut shared_ptr: *mut u32 = core::ptr::null_mut();
+    let mut shared_ptr: *mut u32;
 
     rprintln!("[SHARED_COUNTER] Attempting to map existing counter...");
 
