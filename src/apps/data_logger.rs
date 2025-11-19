@@ -4,7 +4,7 @@ use crate::app_syscalls::*;
 use app_macros::app;
 use rtt_target::rprintln;
 
-#[app(id = 10, stack_size = 384, name = "data_logger")]
+#[app(id = 13, stack_size = 384, name = "data_logger")]
 pub unsafe extern "C" fn data_logger() -> ! {
     rprintln!("[APP data_logger] started");
     let mut data_points = 0u32;

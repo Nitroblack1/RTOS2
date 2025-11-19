@@ -3,7 +3,8 @@ target = "thumbv7em-none-eabihf"
 
 [target.thumbv7em-none-eabihf]
 rustflags = ["-C", "link-arg=-Tlink.x"]
+runner = "probe-rs run --chip STM32F446RE"
 
 [env]
 # RTT 버퍼 크기 확장
-RTT_UP_BUFFER_SIZE_0 = "4096"
+RTT_UP_BUFFER_SIZE_0 = "8192"

@@ -148,6 +148,16 @@ unsafe fn discover_linker_registered_apps() -> usize {
             stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
             stack_ptr_fn: None,
         },
+        // Phase 2: Memory protection testing
+        AppMetadata {
+            id: 15,
+            name: "memory_violator",
+            entry: crate::apps::memory_violator::memory_violator as usize,
+            entry_fn: Some(crate::apps::memory_violator::memory_violator),
+            stack_ptr: 0,
+            stack_size: 1024,  // 384 → 1024 바이트로 증가 (안전성)
+            stack_ptr_fn: None,
+        },
     ];
 
     let app_count = discovered_apps.len().min(MAX_APPS);
@@ -207,7 +217,7 @@ pub unsafe fn get_registered_apps_mut() -> &'static mut [AppMetadata] {
     &mut APP_REGISTRY[..count]
 }
 
-// for debug
+
 #[cortex_m_rt::exception]
 unsafe fn HardFault(ef: &cortex_m_rt::ExceptionFrame) -> ! {
     rprintln!("[FATAL] HardFault at PC: 0x{:08x}", ef.pc());
@@ -273,6 +283,7 @@ unsafe fn HardFault(ef: &cortex_m_rt::ExceptionFrame) -> ! {
     loop {}
 }
 
+
 #[cortex_m_rt::exception]
 unsafe fn UsageFault() -> ! {
     rprintln!("[FATAL] UsageFault occurred");
@@ -288,73 +299,148 @@ unsafe fn MemoryManagement() -> ! {
     const SCB_MMFAR: *mut u32 = 0xE000_ED34 as *mut u32; // MemManage Fault Address Register
     const SCB_CFSR: *mut u32 = 0xE000_ED28 as *mut u32; // Configurable Fault Status Register
 
-    unsafe {
+    let (mmfsr, mmfar, current_task_id, task_name, app_id) = unsafe {
         let mmfsr = core::ptr::read_volatile(SCB_MMFSR);
-        let cfsr = core::ptr::read_volatile(SCB_CFSR);
+        let _cfsr = core::ptr::read_volatile(SCB_CFSR);
         let mmfar = if (mmfsr & 0x80) != 0 { // MMARVALID bit
             core::ptr::read_volatile(SCB_MMFAR)
         } else {
             0
         };
 
-        rprintln!("[MPU] === MEMORY PROTECTION VIOLATION ANALYSIS ===");
-        rprintln!("[MPU] MMFSR: 0x{:02x}, CFSR: 0x{:08x}", mmfsr, cfsr);
-
-        if mmfar != 0 {
-            rprintln!("[MPU] Fault address: 0x{:08x}", mmfar);
-
-            // Analyze which memory region was violated
-            if mmfar >= 0x08000000 && mmfar < 0x08080000 {
-                rprintln!("[MPU] → Flash memory violation (0x08000000-0x0807FFFF)");
-            } else if mmfar >= 0x20000000 && mmfar < 0x20010000 {
-                rprintln!("[MPU] → Kernel SRAM violation (0x20000000-0x2000FFFF)");
-            } else if mmfar >= 0x20010000 && mmfar < 0x20020000 {
-                rprintln!("[MPU] → Task stack area violation (0x20010000-0x2001FFFF)");
-            } else {
-                rprintln!("[MPU] → Unknown memory region violation");
-            }
-        }
-
-        // Decode fault type with detailed explanations
-        if (mmfsr & 0x01) != 0 { rprintln!("[MPU] → Instruction access violation (attempted execute in no-exec region)"); }
-        if (mmfsr & 0x02) != 0 { rprintln!("[MPU] → Data access violation (read/write permission denied)"); }
-        if (mmfsr & 0x08) != 0 { rprintln!("[MPU] → MemManage fault during exception return (stack corruption)"); }
-        if (mmfsr & 0x10) != 0 { rprintln!("[MPU] → MemManage fault during exception entry (stack overflow)"); }
-        if (mmfsr & 0x20) != 0 { rprintln!("[MPU] → MemManage fault on lazy FP state preservation"); }
-
-        // Show current execution context
-        let current_task_count = sched::get_task_count();
-        rprintln!("[MPU] Current task count: {}", current_task_count);
-
-        // Get current execution mode
-        let mut control: u32;
-        let mut psp: u32;
-        let mut msp: u32;
-        core::arch::asm!("mrs {}, CONTROL", out(reg) control, options(nomem, nostack));
-        core::arch::asm!("mrs {}, PSP", out(reg) psp, options(nomem, nostack));
-        core::arch::asm!("mrs {}, MSP", out(reg) msp, options(nomem, nostack));
-
-        rprintln!("[MPU] Execution context: CONTROL=0x{:08x}, PSP=0x{:08x}, MSP=0x{:08x}",
-                 control, psp, msp);
-
-        if (control & 0x02) != 0 {
-            rprintln!("[MPU] → Fault occurred in THREAD mode (using PSP)");
+        // Get current task information for safer recovery
+        let current_task_id = sched::CURR;
+        let task_name = if current_task_id < sched::N_TASKS {
+            sched::TCBS[current_task_id].name
         } else {
-            rprintln!("[MPU] → Fault occurred in HANDLER mode (using MSP)");
+            "UNKNOWN"
+        };
+        let app_id = if current_task_id < sched::N_TASKS {
+            sched::TCBS[current_task_id].app_id
+        } else {
+            0
+        };
+
+        (mmfsr, mmfar, current_task_id, task_name, app_id)
+    };
+
+    rprintln!("[MPU] === MEMORY PROTECTION VIOLATION ANALYSIS ===");
+    rprintln!("[MPU] Violating task: {} (id={}, app_id={})", task_name, current_task_id, app_id);
+    rprintln!("[MPU] MMFSR: 0x{:02x}", mmfsr);
+
+    if mmfar != 0 {
+        rprintln!("[MPU] Fault address: 0x{:08x}", mmfar);
+
+        // Analyze which memory region was violated
+        if mmfar >= 0x08000000 && mmfar < 0x08080000 {
+            rprintln!("[MPU-VIOLATION] Flash memory write attempt BLOCKED! (0x08000000-0x0807FFFF)");
+        } else if mmfar >= 0x20000000 && mmfar < 0x20010000 {
+            rprintln!("[MPU-VIOLATION] Kernel SRAM access attempt BLOCKED! (0x20000000-0x2000FFFF)");
+        } else if mmfar >= 0x20010000 && mmfar < 0x20011000 {
+            rprintln!("[MPU-VIOLATION] Producer app memory access BLOCKED! (0x20010000-0x20010FFF)");
+        } else if mmfar >= 0x20011000 && mmfar < 0x20012000 {
+            rprintln!("[MPU-VIOLATION] Consumer app memory access BLOCKED! (0x20011000-0x20011FFF)");
+        } else if mmfar >= 0x20012000 && mmfar < 0x20013000 {
+            rprintln!("[MPU-VIOLATION] Shared Counter app memory access BLOCKED! (0x20012000-0x20012FFF)");
+        } else if mmfar >= 0x20010000 && mmfar < 0x20020000 {
+            rprintln!("[MPU-VIOLATION] App memory area access BLOCKED! (0x20010000-0x2001FFFF)");
+        } else {
+            rprintln!("[MPU-VIOLATION] Unknown memory region access BLOCKED! (0x{:08x})", mmfar);
         }
-
-        // Clear the fault for potential recovery
-        core::ptr::write_volatile(SCB_MMFSR, 0xFF);
-
-        rprintln!("[MPU] === END VIOLATION ANALYSIS ===");
     }
 
-    rprintln!("[MPU] FATAL: Task terminated due to memory protection violation");
-    rprintln!("[MPU] System entering safe mode - halting execution");
+    // Decode fault type with detailed explanations
+    if (mmfsr & 0x01) != 0 { rprintln!("[MPU] → Instruction access violation (attempted execute in no-exec region)"); }
+    if (mmfsr & 0x02) != 0 { rprintln!("[MPU] → Data access violation (read/write permission denied)"); }
+    if (mmfsr & 0x08) != 0 { rprintln!("[MPU] → MemManage fault during exception return (stack corruption)"); }
+    if (mmfsr & 0x10) != 0 { rprintln!("[MPU] → MemManage fault during exception entry (stack overflow)"); }
+    if (mmfsr & 0x20) != 0 { rprintln!("[MPU] → MemManage fault on lazy FP state preservation"); }
 
-    // In a real implementation, you would mark the current task as blocked/killed
-    // and trigger a context switch to continue with other tasks
-    loop {}
+    // Clear the fault status for recovery
+    unsafe {
+        core::ptr::write_volatile(SCB_MMFSR, 0xFF);
+    }
+
+    rprintln!("[MPU] === INITIATING SAFE RECOVERY ===");
+
+    // Phase 2 Recovery Mechanism: Isolate violating app and continue system operation
+    if current_task_id < sched::N_TASKS {
+        unsafe {
+            // Mark the violating task as blocked/killed
+            sched::TCBS[current_task_id].state = sched::TaskState::Blocked;
+            rprintln!("[MPU] Task '{}' (id={}) marked as BLOCKED due to memory violation",
+                     task_name, current_task_id);
+
+            // Log the violation for system monitoring
+            rprintln!("[MPU] SECURITY LOG: App {} violated memory protection at 0x{:08x}",
+                     app_id, mmfar);
+
+            // Disable the violating app's MPU region if it has one
+            let app_region = match app_id {
+                5 => Some(0), // Producer
+                6 => Some(1), // Consumer
+                7 => Some(2), // Shared Counter
+                14 => None,   // Memory violator test app - no dedicated region
+                _ => None,
+            };
+
+            if let Some(_region) = app_region {
+                rprintln!("[MPU] Disabling MPU protection for terminated app {}", app_id);
+                // The violating app's memory region will be reclaimed
+            }
+
+            // Clear any app-specific MPU context to prevent further violations
+            crate::mpu::disable_app_regions().unwrap_or_else(|_| {
+                rprintln!("[MPU] Warning: Failed to disable app regions during recovery");
+            });
+
+            // Force a context switch to the next available task
+            rprintln!("[MPU] Forcing context switch to continue system operation...");
+
+            // Find next available task that is not blocked
+            let mut next_task = (current_task_id + 1) % sched::N_TASKS;
+            let mut attempts = 0;
+
+            while sched::TCBS[next_task].state == sched::TaskState::Blocked && attempts < sched::N_TASKS {
+                next_task = (next_task + 1) % sched::N_TASKS;
+                attempts += 1;
+            }
+
+            if attempts >= sched::N_TASKS {
+                rprintln!("[MPU] CRITICAL: All tasks are blocked! System must halt.");
+                rprintln!("[MPU] This indicates a system-wide failure - entering safe mode.");
+                loop {}
+            } else {
+                rprintln!("[MPU] Switching to task {} ('{}') for continued operation",
+                         next_task, sched::TCBS[next_task].name);
+
+                // Update current task pointer
+                sched::CURR = next_task;
+                sched::TCBS[next_task].state = sched::TaskState::Running;
+
+                // Set up the new task's context and trigger PendSV for safe switch
+                cortex_m::peripheral::SCB::set_pendsv();
+
+                rprintln!("[MPU] === RECOVERY COMPLETED - SYSTEM CONTINUES ===");
+
+                // Return to the new task context - the PendSV handler will complete the switch
+                // We need to return to Thread mode with the new task's PSP
+                let new_psp = sched::TCBS[next_task].sp;
+
+                // Set up return to thread mode with the new task
+                core::arch::asm!(
+                    "msr PSP, {}",
+                    "mov lr, #0xFFFFFFFD",  // Return to Thread mode, use PSP
+                    "bx lr",
+                    in(reg) new_psp,
+                    options(noreturn)
+                );
+            }
+        }
+    } else {
+        rprintln!("[MPU] CRITICAL: Invalid task ID during fault - system must halt");
+        loop {}
+    }
 }
 // for debug
 
@@ -943,35 +1029,32 @@ mod mpu {
 
     // Per-app MPU configuration with realistic memory layout
     pub unsafe fn configure_app_regions(app_id: u8) -> Result<(), &'static str> {
-        if app_id >= 3 {
-            return Err("Invalid app ID (max 3 apps supported)");
-        }
+        // Real app memory regions based on actual runtime app_ids
+        // Producer (runtime id=5):      0x20010000 - 0x20011000 (4KB) → MPU region 0
+        // Consumer (runtime id=6):      0x20011000 - 0x20012000 (4KB) → MPU region 1
+        // SharedCounter (runtime id=7): 0x20012000 - 0x20013000 (4KB) → MPU region 2
+        // MemViolator (runtime id=8):   0x20013000 - 0x20013400 (1KB) → MPU region 3 - RESTRICTED!
 
-        // Real app memory regions based on actual stack layout
-        // Producer:     0x20010000 - 0x20011000 (4KB)
-        // Consumer:     0x20011000 - 0x20012000 (4KB)
-        // SharedCounter: 0x20012000 - 0x20013000 (4KB)
-        const APP_MEMORY_SIZE: u32 = 4 * 1024;   // 4KB per app (realistic)
-
-        let (app_base, region_num) = match app_id {
-            0 => (0x2001_0000, 2), // region_id 0 -> MPU region 2 (Producer)
-            1 => (0x2001_1000, 3), // region_id 1 -> MPU region 3 (Consumer)
-            2 => (0x2001_2000, 4), // region_id 2 -> MPU region 4 (Shared counter)
-            _ => return Err("Invalid app region ID"),
+        let (app_base, app_size, region_num, permissions) = match app_id {
+            5 => (0x2001_0000, 4 * 1024, 2, MPU_AP_PRIV_RW_USER_RW), // Producer - full access
+            6 => (0x2001_1000, 4 * 1024, 3, MPU_AP_PRIV_RW_USER_RW), // Consumer - full access
+            7 => (0x2001_2000, 4 * 1024, 4, MPU_AP_PRIV_RW_USER_RW), // Shared counter - full access
+            8 => (0x2001_3000, 1 * 1024, 5, MPU_AP_PRIV_RW_USER_RW), // Memory violator - RESTRICTED to 1KB only
+            _ => return Err("Invalid app region ID - only IPC apps (5-8) supported"),
         };
 
         // Configure app-specific memory region
-        configure_region(region_num, app_base, region_size_encoding(APP_MEMORY_SIZE as usize)?,
-                        MPU_AP_PRIV_RW_USER_RW, true)?; // Execute never for app data
+        configure_region(region_num, app_base, region_size_encoding(app_size as usize)?,
+                        permissions, true)?; // Execute never for app data
 
         rprintln!("[MPU-ISOLATE] Configured app {} memory: region {}, base=0x{:08x}, size={}KB",
-                 app_id, region_num, app_base, APP_MEMORY_SIZE / 1024);
+                 app_id, region_num, app_base, app_size / 1024);
         Ok(())
     }
 
     // Disable all app regions (for security during context switch)
     pub unsafe fn disable_app_regions() -> Result<(), &'static str> {
-        for region in 2..5 { // Disable regions 2-4 (app regions)
+        for region in 2..6 { // Disable regions 2-5 (app regions)
             core::ptr::write_volatile(MPU_RNR, region);
             core::ptr::write_volatile(MPU_RASR, 0); // Disable region
         }
@@ -1498,7 +1581,7 @@ mod sched {
     const MIN_APP_STACK_BYTES: usize = super::MIN_APP_STACK_BYTES;
     const STACK_ALIGNMENT_BYTES: usize = STACK_ALIGNMENT_WORDS * core::mem::size_of::<u32>();
 
-    #[derive(Copy, Clone, Debug)]
+    #[derive(Copy, Clone, Debug, PartialEq)]
     pub enum TaskState {
         Ready,
         Running,
@@ -2244,11 +2327,12 @@ mod sched {
                     5 => Some(0), // Producer (actual runtime id=5) -> MPU region 0
                     6 => Some(1), // Consumer (actual runtime id=6) -> MPU region 1
                     7 => Some(2), // Shared Counter (actual runtime id=7) -> MPU region 2
+                    8 => Some(3), // Memory Violator (actual runtime id=8) -> MPU region 3 (RESTRICTED)
                     _ => None,    // Other apps don't get isolated memory
                 };
 
                 if let Some(region_id) = mpu_region {
-                    match crate::mpu::switch_mpu_context(region_id) {
+                    match crate::mpu::switch_mpu_context(app_id) {
                         Ok(_) => {
                             rprintln!("[MPU-ISOLATE] Switched to app {} MPU context (region {})", app_id, region_id);
                         },
@@ -2265,6 +2349,20 @@ mod sched {
                 }
 
                 CURR = next_task;
+
+                // Switch to unprivileged mode for memory_violator app to test MPU
+                if app_name == "memory_violator" {
+                    // Set CONTROL register bit 0 (nPRIV) to 1 for unprivileged mode
+                    core::arch::asm!(
+                        "mrs r0, CONTROL",
+                        "orr r0, r0, #1",    // Set nPRIV bit (bit 0)
+                        "msr CONTROL, r0",
+                        "isb",               // Instruction synchronization barrier
+                        out("r0") _,
+                        options(nomem, nostack)
+                    );
+                    rprintln!("[MPU] Switched memory_violator to unprivileged mode");
+                }
 
                 // Set PSP in global and return r4 pointer
                 NEXT_TASK_PSP = TCBS[next_task].sp;
@@ -2443,6 +2541,7 @@ mod sched {
         }
     }
 
+    // SysTick 핸들러 - 1초마다 호출
     #[exception]
     fn SysTick() {
         static mut SYSTICK_COUNT: u32 = 0;
@@ -2703,6 +2802,7 @@ pub mod app_syscalls {
     }
 }
 
+// ───────────── ENTRY POINT ─────────────
 #[entry]
 fn main() -> ! {
     rtt_init_print!();

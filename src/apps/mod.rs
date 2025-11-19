@@ -21,4 +21,7 @@ pub mod producer; // Producer-Consumer test
 pub mod consumer; // Consumer app
 pub mod shared_counter; // Race condition and synchronization test
 
+// Phase 2: Memory protection testing
+pub mod memory_violator; // Memory violation testing app - safer version
+
 // No manual registration arrays needed - apps automatically discovered!
