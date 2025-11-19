@@ -833,9 +833,34 @@ mod mpu {
                             MPU_AP_PRIV_RW, true)?; // Execute never for kernel data
         }
 
+        // App memory layout for isolation
+        const KERNEL_SRAM_BASE: u32 = 0x2000_0000;
+        const KERNEL_SRAM_SIZE: u32 = 32 * 1024; // 32KB for kernel
+
+        const APP_MEMORY_BASE: u32 = 0x2000_8000; // Start after kernel area
+        const APP_MEMORY_SIZE: u32 = 16 * 1024;   // 16KB per app
+        const SHARED_IPC_BASE: u32 = 0x2001_4000; // Shared IPC area
+        const SHARED_IPC_SIZE: u32 = 16 * 1024;   // 16KB for IPC
+
+        unsafe {
+            // Region 0: Flash memory - Privileged execute/read, user read-only
+            configure_region(0, 0x0800_0000, region_size_encoding(512 * 1024)?,
+                            MPU_AP_PRIV_RW_USER_RO, false)?; // Allow execution
+
+            // Region 1: Kernel SRAM - Privileged access only
+            configure_region(1, KERNEL_SRAM_BASE, region_size_encoding(KERNEL_SRAM_SIZE as usize)?,
+                            MPU_AP_PRIV_RW, true)?; // Execute never for kernel data
+
+            // Region 5: Shared IPC Pool - User RW when authorized
+            configure_region(5, SHARED_IPC_BASE, region_size_encoding(SHARED_IPC_SIZE as usize)?,
+                            MPU_AP_PRIV_RW_USER_RW, true)?; // Execute never, shared access
+        }
+
         rprintln!("[MPU] STM32F446 memory regions configured:");
         rprintln!("  Region 0: Flash 0x0800_0000-0x0807_FFFF (512KB) - PRIV RW/USER RO");
-        rprintln!("  Region 1: SRAM  0x2000_0000-0x2000_FFFF (64KB)  - PRIV RW only, XN");
+        rprintln!("  Region 1: Kernel 0x2000_0000-0x2000_7FFF (32KB) - PRIV RW only, XN");
+        rprintln!("  Region 5: IPC Pool 0x2001_4000-0x2001_7FFF (16KB) - USER RW, XN");
+        rprintln!("  Regions 2-4: App-specific (configured dynamically)");
         Ok(())
     }
 
@@ -914,6 +939,74 @@ mod mpu {
             configure_region(region_num, base_addr, size_encoding,
                             MPU_AP_PRIV_RW_USER_RW, true) // Stack is XN (execute never)
         }
+    }
+
+    // Per-app MPU configuration with realistic memory layout
+    pub unsafe fn configure_app_regions(app_id: u8) -> Result<(), &'static str> {
+        if app_id >= 3 {
+            return Err("Invalid app ID (max 3 apps supported)");
+        }
+
+        // Real app memory regions based on actual stack layout
+        // Producer:     0x20010000 - 0x20011000 (4KB)
+        // Consumer:     0x20011000 - 0x20012000 (4KB)
+        // SharedCounter: 0x20012000 - 0x20013000 (4KB)
+        const APP_MEMORY_SIZE: u32 = 4 * 1024;   // 4KB per app (realistic)
+
+        let (app_base, region_num) = match app_id {
+            0 => (0x2001_0000, 2), // region_id 0 -> MPU region 2 (Producer)
+            1 => (0x2001_1000, 3), // region_id 1 -> MPU region 3 (Consumer)
+            2 => (0x2001_2000, 4), // region_id 2 -> MPU region 4 (Shared counter)
+            _ => return Err("Invalid app region ID"),
+        };
+
+        // Configure app-specific memory region
+        configure_region(region_num, app_base, region_size_encoding(APP_MEMORY_SIZE as usize)?,
+                        MPU_AP_PRIV_RW_USER_RW, true)?; // Execute never for app data
+
+        rprintln!("[MPU-ISOLATE] Configured app {} memory: region {}, base=0x{:08x}, size={}KB",
+                 app_id, region_num, app_base, APP_MEMORY_SIZE / 1024);
+        Ok(())
+    }
+
+    // Disable all app regions (for security during context switch)
+    pub unsafe fn disable_app_regions() -> Result<(), &'static str> {
+        for region in 2..5 { // Disable regions 2-4 (app regions)
+            core::ptr::write_volatile(MPU_RNR, region);
+            core::ptr::write_volatile(MPU_RASR, 0); // Disable region
+        }
+        Ok(())
+    }
+
+    // Enable MPU (used after reconfiguration)
+    pub unsafe fn enable_mpu() {
+        core::ptr::write_volatile(MPU_CTRL,
+            MPU_CTRL_ENABLE | MPU_CTRL_HFNMIENA | MPU_CTRL_PRIVDEFENA);
+        core::arch::asm!("dsb", "isb", options(nomem, nostack));
+    }
+
+    // Disable MPU (used before reconfiguration)
+    pub unsafe fn disable_mpu() {
+        core::ptr::write_volatile(MPU_CTRL, 0);
+        core::arch::asm!("dsb", "isb", options(nomem, nostack));
+    }
+
+    // Switch MPU context for app isolation
+    pub unsafe fn switch_mpu_context(app_id: u8) -> Result<(), &'static str> {
+        // Disable MPU during reconfiguration
+        disable_mpu();
+
+        // Clear all app regions first
+        disable_app_regions()?;
+
+        // Configure new app's region
+        configure_app_regions(app_id)?;
+
+        // Re-enable MPU
+        enable_mpu();
+
+        rprintln!("[MPU-ISOLATE] Switched to app {} context", app_id);
+        Ok(())
     }
 
     // Dump current MPU region configuration for debugging
@@ -2134,6 +2227,42 @@ mod sched {
                 // Update task states
                 TCBS[current_task].state = TaskState::Ready;
                 TCBS[next_task].state = TaskState::Running;
+
+                // Switch MPU context for memory isolation
+                let app_id = TCBS[next_task].app_id as u8;
+                let app_name = TCBS[next_task].name;
+
+                // Debug: Show app_id for first few switches
+                static mut DEBUG_COUNTER: u32 = 0;
+                if DEBUG_COUNTER < 10 {
+                    rprintln!("[MPU-DEBUG] Task {}: app_id={}, name='{}'", next_task, app_id, app_name);
+                    DEBUG_COUNTER += 1;
+                }
+
+                // Map specific apps to MPU regions: Producer(10)->0, Consumer(11)->1, SharedCounter(12)->2
+                let mpu_region = match app_id {
+                    10 => Some(0), // Producer -> MPU region 0 (App memory slot 0)
+                    11 => Some(1), // Consumer -> MPU region 1 (App memory slot 1)
+                    12 => Some(2), // Shared Counter -> MPU region 2 (App memory slot 2)
+                    _ => None,     // Other apps don't get isolated memory
+                };
+
+                if let Some(region_id) = mpu_region {
+                    match crate::mpu::switch_mpu_context(app_id) {
+                        Ok(_) => {
+                            rprintln!("[MPU-ISOLATE] Switched to app {} MPU context (region {})", app_id, region_id);
+                        },
+                        Err(e) => {
+                            rprintln!("[MPU-ISOLATE] Failed to switch MPU context for app {} -> region {}: {}", app_id, region_id, e);
+                        }
+                    }
+                } else {
+                    // Show when non-IPC apps are running
+                    if DEBUG_COUNTER < 20 {
+                        rprintln!("[MPU-DEBUG] Non-IPC app: {} (id={})", app_name, app_id);
+                        DEBUG_COUNTER += 1;
+                    }
+                }
 
                 CURR = next_task;
 
