@@ -12,6 +12,159 @@ use stm32f4 as _; // Required for memory layout and vector table
 mod apps;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+// ───────────── PERFORMANCE MEASUREMENT ─────────────
+
+/// DWT (Data Watchpoint and Trace) registers for cycle counting
+mod dwt {
+    // DWT Control register
+    const DWT_CTRL: *mut u32 = 0xE0001000 as *mut u32;
+    // DWT Cycle Count register
+    const DWT_CYCCNT: *mut u32 = 0xE0001004 as *mut u32;
+    // CoreDebug Demcr register
+    const DEMCR: *mut u32 = 0xE000EDFC as *mut u32;
+
+    const DEMCR_TRCENA: u32 = 1 << 24;  // Trace enable
+    const DWT_CTRL_CYCCNTENA: u32 = 1 << 0;  // Cycle counter enable
+
+    /// Initialize DWT cycle counter for precise timing
+    pub unsafe fn init() {
+        // Enable trace
+        let mut demcr = core::ptr::read_volatile(DEMCR);
+        demcr |= DEMCR_TRCENA;
+        core::ptr::write_volatile(DEMCR, demcr);
+
+        // Reset cycle counter
+        core::ptr::write_volatile(DWT_CYCCNT, 0);
+
+        // Enable cycle counter
+        let mut ctrl = core::ptr::read_volatile(DWT_CTRL);
+        ctrl |= DWT_CTRL_CYCCNTENA;
+        core::ptr::write_volatile(DWT_CTRL, ctrl);
+    }
+
+    /// Get current cycle count
+    pub fn get_cycles() -> u32 {
+        unsafe { core::ptr::read_volatile(DWT_CYCCNT) }
+    }
+
+    /// Reset cycle counter to zero
+    pub fn reset() {
+        unsafe { core::ptr::write_volatile(DWT_CYCCNT, 0) };
+    }
+}
+
+/// Performance measurement utilities
+pub mod perf {
+    use super::dwt;
+    use rtt_target::rprintln;
+
+    /// Measure execution time of a function in CPU cycles
+    pub fn measure_cycles<F, R>(name: &str, f: F) -> R
+    where F: FnOnce() -> R {
+        dwt::reset();
+        let start = dwt::get_cycles();
+        let result = f();
+        let end = dwt::get_cycles();
+        let cycles = end.wrapping_sub(start);
+        rprintln!("[PERF] {}: {} cycles", name, cycles);
+        result
+    }
+
+    /// Convert cycles to microseconds (assuming 180MHz CPU clock)
+    pub fn cycles_to_us(cycles: u32) -> f32 {
+        cycles as f32 / 180.0
+    }
+
+    /// Performance benchmark structure for collecting statistics
+    pub struct BenchmarkStats {
+        pub min_cycles: u32,
+        pub max_cycles: u32,
+        pub total_cycles: u64,
+        pub count: u32,
+    }
+
+    impl BenchmarkStats {
+        pub const fn new() -> Self {
+            Self {
+                min_cycles: u32::MAX,
+                max_cycles: 0,
+                total_cycles: 0,
+                count: 0,
+            }
+        }
+
+        pub fn add_measurement(&mut self, cycles: u32) {
+            self.min_cycles = self.min_cycles.min(cycles);
+            self.max_cycles = self.max_cycles.max(cycles);
+            self.total_cycles += cycles as u64;
+            self.count += 1;
+        }
+
+        pub fn average_cycles(&self) -> u32 {
+            if self.count == 0 { 0 } else { (self.total_cycles / self.count as u64) as u32 }
+        }
+
+        pub fn print_stats(&self, name: &str) {
+            rprintln!("[PERF] {} stats over {} samples:", name, self.count);
+            rprintln!("[PERF]   Min: {} cycles ({:.2} μs)", self.min_cycles, cycles_to_us(self.min_cycles));
+            rprintln!("[PERF]   Max: {} cycles ({:.2} μs)", self.max_cycles, cycles_to_us(self.max_cycles));
+            rprintln!("[PERF]   Avg: {} cycles ({:.2} μs)", self.average_cycles(), cycles_to_us(self.average_cycles()));
+        }
+    }
+
+    /// Print comprehensive performance summary
+    pub fn print_performance_summary() {
+        rprintln!("[PERF] ===== COMPREHENSIVE PERFORMANCE REPORT =====");
+
+        unsafe {
+            let mpu_on_stats = core::ptr::addr_of_mut!(super::CONTEXT_SWITCH_STATS_MPU_ON);
+            let mpu_off_stats = core::ptr::addr_of_mut!(super::CONTEXT_SWITCH_STATS_MPU_OFF);
+            let ipc_stats = core::ptr::addr_of_mut!(super::IPC_LATENCY_STATS);
+
+            if (*mpu_on_stats).count > 0 {
+                (*mpu_on_stats).print_stats("Context Switch (MPU ON)");
+            }
+
+            if (*mpu_off_stats).count > 0 {
+                (*mpu_off_stats).print_stats("Context Switch (MPU OFF)");
+
+                // Calculate MPU overhead
+                let mpu_on_avg = (*mpu_on_stats).average_cycles();
+                let mpu_off_avg = (*mpu_off_stats).average_cycles();
+
+                if mpu_on_avg > 0 && mpu_off_avg > 0 {
+                    let overhead = mpu_on_avg as i32 - mpu_off_avg as i32;
+                    let overhead_percent = (overhead as f32 / mpu_off_avg as f32) * 100.0;
+
+                    rprintln!("[PERF] === MPU OVERHEAD ANALYSIS ===");
+                    rprintln!("[PERF] MPU Overhead: {} cycles ({:.2} μs)", overhead, cycles_to_us(overhead.abs() as u32));
+                    rprintln!("[PERF] MPU Overhead: {:.2}%", overhead_percent);
+                }
+            }
+
+            if (*ipc_stats).count > 0 {
+                (*ipc_stats).print_stats("IPC Latency");
+
+                let throughput = if (*ipc_stats).average_cycles() > 0 {
+                    180_000_000.0 / (*ipc_stats).average_cycles() as f32
+                } else { 0.0 };
+                rprintln!("[PERF] IPC Throughput: {:.0} operations/second", throughput);
+            }
+        }
+
+        rprintln!("[PERF] ============================================");
+    }
+}
+
+// Global performance statistics
+static mut CONTEXT_SWITCH_STATS_MPU_ON: perf::BenchmarkStats = perf::BenchmarkStats::new();
+static mut CONTEXT_SWITCH_STATS_MPU_OFF: perf::BenchmarkStats = perf::BenchmarkStats::new();
+static mut IPC_LATENCY_STATS: perf::BenchmarkStats = perf::BenchmarkStats::new();
+
+// MPU performance testing state
+static mut MPU_BENCHMARK_MODE: bool = false;
+static mut MPU_TEMPORARILY_DISABLED: bool = false;
+
 // ───────────── APP METADATA SYSTEM ─────────────
 
 
@@ -72,25 +225,29 @@ static mut APP_REGISTRY: [AppMetadata; MAX_APPS] = [AppMetadata::empty(); MAX_AP
 unsafe fn discover_linker_registered_apps() -> usize {
     // For now, manually register the apps until the linker section scanning is fully implemented
     // This represents what the linker would discover automatically
-    let fib_fn_addr = crate::apps::fibonacci::fibonacci as usize;
+    let _fib_fn_addr = crate::apps::fibonacci::fibonacci as usize;
 
     let discovered_apps = [
+        // Only benchmark apps active for memory optimization
+        /*  // Counter app temporarily disabled
         AppMetadata {
             id: 1,
             name: "counter",
             entry: crate::apps::counter::counter as usize,
             entry_fn: Some(crate::apps::counter::counter),
             stack_ptr: 0,
-            stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
+            stack_size: 1024,
             stack_ptr_fn: None,
         },
+        */
+        /*  // TEMPORARILY DISABLED for memory optimization
         AppMetadata {
             id: 2,
             name: "timer",
             entry: crate::apps::timer::timer as usize,
             entry_fn: Some(crate::apps::timer::timer),
             stack_ptr: 0,
-            stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
+            stack_size: 1024,  // Reduced for memory optimization
             stack_ptr_fn: None,
         },
         AppMetadata {
@@ -99,7 +256,7 @@ unsafe fn discover_linker_registered_apps() -> usize {
             entry: crate::apps::network_stack::network_stack as usize,
             entry_fn: Some(crate::apps::network_stack::network_stack),
             stack_ptr: 0,
-            stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
+            stack_size: 1024,  // Reduced for memory optimization
             stack_ptr_fn: None,
         },
         AppMetadata {
@@ -108,7 +265,7 @@ unsafe fn discover_linker_registered_apps() -> usize {
             entry: sched::demo_dynamic_worker as usize,
             entry_fn: Some(sched::demo_dynamic_worker),
             stack_ptr: 0,
-            stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
+            stack_size: 1024,  // Reduced for memory optimization
             stack_ptr_fn: None,
         },
         AppMetadata {
@@ -117,17 +274,18 @@ unsafe fn discover_linker_registered_apps() -> usize {
             entry: fib_fn_addr,
             entry_fn: Some(crate::apps::fibonacci::fibonacci),
             stack_ptr: 0,
-            stack_size: 4096,  // 1024 → 4096 바이트로 대폭 확대 (재귀 가능성)
+            stack_size: 2048,  // Reduced from 4096 for memory optimization
             stack_ptr_fn: None,
         },
-        // IPC and shared memory test apps
+        */
+        /* // IPC and shared memory test apps - TEMPORARILY DISABLED
         AppMetadata {
             id: 10,
             name: "producer",
             entry: crate::apps::producer::producer as usize,
             entry_fn: Some(crate::apps::producer::producer),
             stack_ptr: 0,
-            stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
+            stack_size: 1024,  // Reduced for memory optimization
             stack_ptr_fn: None,
         },
         AppMetadata {
@@ -136,7 +294,7 @@ unsafe fn discover_linker_registered_apps() -> usize {
             entry: crate::apps::consumer::consumer as usize,
             entry_fn: Some(crate::apps::consumer::consumer),
             stack_ptr: 0,
-            stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
+            stack_size: 1024,  // Reduced for memory optimization
             stack_ptr_fn: None,
         },
         AppMetadata {
@@ -145,9 +303,10 @@ unsafe fn discover_linker_registered_apps() -> usize {
             entry: crate::apps::shared_counter::shared_counter as usize,
             entry_fn: Some(crate::apps::shared_counter::shared_counter),
             stack_ptr: 0,
-            stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
+            stack_size: 1024,  // Reduced for memory optimization
             stack_ptr_fn: None,
         },
+        */
         // Phase 2: Memory protection testing - TEMPORARILY DISABLED
         // AppMetadata {
         //     id: 15,
@@ -158,6 +317,25 @@ unsafe fn discover_linker_registered_apps() -> usize {
         //     stack_size: 1024,  // 384 → 1024 바이트로 증가 (안전성)
         //     stack_ptr_fn: None,
         // },
+        // Only one benchmark app for minimum memory usage
+        AppMetadata {
+            id: 20,
+            name: "benchmark_context_switch",
+            entry: crate::apps::benchmark_context_switch::benchmark_context_switch as usize,
+            entry_fn: Some(crate::apps::benchmark_context_switch::benchmark_context_switch),
+            stack_ptr: 0,
+            stack_size: 1024,  // Further reduced for memory optimization
+            stack_ptr_fn: None,
+        },
+        AppMetadata {
+            id: 21,
+            name: "benchmark_ipc_latency",
+            entry: crate::apps::benchmark_ipc_latency::benchmark_ipc_latency as usize,
+            entry_fn: Some(crate::apps::benchmark_ipc_latency::benchmark_ipc_latency),
+            stack_ptr: 0,
+            stack_size: 1024,  // Optimized for memory usage
+            stack_ptr_fn: None,
+        },
     ];
 
     let app_count = discovered_apps.len().min(MAX_APPS);
@@ -1047,8 +1225,8 @@ mod mpu {
         configure_region(region_num, app_base, region_size_encoding(app_size as usize)?,
                         permissions, true)?; // Execute never for app data
 
-        rprintln!("[MPU-ISOLATE] Configured app {} memory: region {}, base=0x{:08x}, size={}KB",
-                 app_id, region_num, app_base, app_size / 1024);
+        // rprintln!("[MPU-ISOLATE] Configured app {} memory: region {}, base=0x{:08x}, size={}KB",
+        //          app_id, region_num, app_base, app_size / 1024); // DISABLED for benchmark
         Ok(())
     }
 
@@ -1074,6 +1252,48 @@ mod mpu {
         core::arch::asm!("dsb", "isb", options(nomem, nostack));
     }
 
+    /// Check if MPU is currently enabled
+    pub unsafe fn is_mpu_enabled() -> bool {
+        let ctrl = core::ptr::read_volatile(MPU_CTRL);
+        (ctrl & MPU_CTRL_ENABLE) != 0
+    }
+
+    /// Temporarily disable MPU for performance comparison
+    pub unsafe fn disable_mpu_for_benchmark() {
+        if is_mpu_enabled() {
+            super::MPU_TEMPORARILY_DISABLED = false; // It was enabled
+            disable_mpu();
+            rprintln!("[PERF] MPU disabled for benchmark");
+        } else {
+            super::MPU_TEMPORARILY_DISABLED = true; // It was already disabled
+        }
+    }
+
+    /// Re-enable MPU after benchmark if it was previously enabled
+    pub unsafe fn restore_mpu_after_benchmark() {
+        if !super::MPU_TEMPORARILY_DISABLED {
+            enable_mpu();
+            rprintln!("[PERF] MPU restored after benchmark");
+        }
+    }
+
+    /// Enable benchmark mode for MPU performance comparison
+    pub unsafe fn enable_benchmark_mode() {
+        super::MPU_BENCHMARK_MODE = true;
+        rprintln!("[PERF] MPU benchmark mode enabled");
+    }
+
+    /// Disable benchmark mode
+    pub unsafe fn disable_benchmark_mode() {
+        super::MPU_BENCHMARK_MODE = false;
+        rprintln!("[PERF] MPU benchmark mode disabled");
+    }
+
+    /// Check if currently in benchmark mode
+    pub fn is_benchmark_mode() -> bool {
+        unsafe { super::MPU_BENCHMARK_MODE }
+    }
+
     // Switch MPU context for app isolation
     pub unsafe fn switch_mpu_context(app_id: u8) -> Result<(), &'static str> {
         // Disable MPU during reconfiguration
@@ -1088,7 +1308,7 @@ mod mpu {
         // Re-enable MPU
         enable_mpu();
 
-        rprintln!("[MPU-ISOLATE] Switched to app {} context", app_id);
+        // rprintln!("[MPU-ISOLATE] Switched to app {} context", app_id); // DISABLED for benchmark
         Ok(())
     }
 
@@ -1385,7 +1605,7 @@ mod ipc {
                     rprintln!("[IPC] Warning: Failed to configure MPU for shared memory: {}", e);
                 }
 
-                rprintln!("[IPC] Allocated shared memory region {} (size: {} bytes)", region_id, aligned_size);
+                // rprintln!("[IPC] Allocated shared memory region {} (size: {} bytes)", region_id, aligned_size); // DISABLED for benchmark
                 return Ok(region_id);
             }
         }
@@ -2293,9 +2513,9 @@ mod sched {
                 let hw_frame = core::slice::from_raw_parts(next_psp as *const u32, 8);
                 let next_pc = hw_frame[6];
 
-                // context switching debugging
-                rprintln!("[SWITCH] {} -> {}: PC=0x{:08x}, PSP=0x{:08x}",
-                         current_task, next_task, next_pc, next_psp);
+                // context switching debugging - DISABLED for benchmark focus
+                // rprintln!("[SWITCH] {} -> {}: PC=0x{:08x}, PSP=0x{:08x}",
+                //          current_task, next_task, next_pc, next_psp);
 
                 if next_pc < 0x08000000 || next_pc >= 0x08080000 {
                     rprintln!("[FATAL] Invalid next task PC: 0x{:08x} for task {} '{}'",
@@ -2318,7 +2538,7 @@ mod sched {
                 // Debug: Show app_id for first few switches
                 static mut DEBUG_COUNTER: u32 = 0;
                 if DEBUG_COUNTER < 10 {
-                    rprintln!("[MPU-DEBUG] Task {}: app_id={}, name='{}'", next_task, app_id, app_name);
+                    // rprintln!("[MPU-DEBUG] Task {}: app_id={}, name='{}'", next_task, app_id, app_name); // DISABLED for benchmark
                     DEBUG_COUNTER += 1;
                 }
 
@@ -2343,7 +2563,7 @@ mod sched {
                 } else {
                     // Show when non-IPC apps are running
                     if DEBUG_COUNTER < 20 {
-                        rprintln!("[MPU-DEBUG] Non-IPC app: {} (id={})", app_name, app_id);
+                        // rprintln!("[MPU-DEBUG] Non-IPC app: {} (id={})", app_name, app_id); // DISABLED for benchmark
                         DEBUG_COUNTER += 1;
                     }
                 }
@@ -2813,6 +3033,10 @@ fn main() -> ! {
     }
 
     rprintln!("[mini-os] Booting");
+
+    // Initialize DWT cycle counter for performance measurement
+    unsafe { dwt::init() };
+    rprintln!("[PERF] DWT cycle counter initialized for performance measurement");
 
     unsafe {
         // ───── Initialize static BOARD instance ─────

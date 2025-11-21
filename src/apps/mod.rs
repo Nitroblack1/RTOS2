@@ -24,4 +24,8 @@ pub mod shared_counter; // Race condition and synchronization test
 // Phase 2: Memory protection testing
 pub mod memory_violator; // Memory violation testing app - safer version
 
+// Performance benchmarking apps
+pub mod benchmark_context_switch; // Context switch performance with/without MPU
+pub mod benchmark_ipc_latency; // IPC message latency and throughput measurement
+
 // No manual registration arrays needed - apps automatically discovered!
