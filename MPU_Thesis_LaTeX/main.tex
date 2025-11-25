@@ -1,0 +1,167 @@
+% -*- mode : latex; coding: utf-8 -*-
+% ARM Cortex-M4 MPU Performance Analysis Thesis
+% Author: Yong-Hwi Cho
+
+\documentclass[11pt,a4paper,oneside,openany,reqno,chapter,nokorean]{oblivoir}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the format %%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[utf8]{inputenc}
+\usepackage{fapapersize}
+\usefapapersize{*,*,25mm,25mm,30mm,15mm}
+
+\chapterstyle{default}
+\usepackage{tocloft}
+\def\cftchapteraftersnum{.}
+\renewcommand{\cftchapterdotsep}{\cftdotsep}% Chapters should use dots in ToC
+
+\let\interHchar\undefined
+\let\interhword\undefined
+\usepackage[default]{dhucs-interword}
+\usepackage{dhucs-gremph}
+\usepackage{dhucs-enumerate}
+\usepackage{url}
+\usepackage{rotating}
+
+\usepackage{amsmath,amsthm,amssymb,amsxtra}
+\usepackage{graphicx}
+\newsubfloat{figure}
+\usepackage{epsfig}
+\let\footruleskip\undefined
+\usepackage{fancyhdr}
+\usepackage{environ}
+\usepackage{siunitx}
+\usepackage{caption}
+
+\usepackage{wrapfig,lipsum,booktabs}
+\usepackage{setspace-custom}
+\doublespacing
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the content %%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[ruled,linesnumbered]{algorithm2e}
+\usepackage{subcaption} % put captions in subplots
+\usepackage{booktabs}   % make beautiful tables
+\usepackage{multirow}   % multirow command for booktabs
+\usepackage{tikz}       % draw figures with LaTeX
+\usepackage{pgfplots}   % draw plots with LaTeX
+\pgfplotsset{compat=1.14}
+\usepgfplotslibrary{fillbetween}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% SNUECE Bachelor Thesis %%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{SNUECE-BachelorThesis}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Configurations %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\setlength\parindent{2pc} % set paragraph indent size
+\setlength\unitlength{1mm} % set unit-length in the Picture environment
+
+\numberwithin{equation}{chapter} % number equations separately for each chapter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+  % Fill out information about this paper here.
+  \EnglishTitle{Performance Analysis and Optimization of\\Memory Protection Unit in ARM Cortex-M4 STM32F446\\for Automotive ECU RTOS Environment}
+  \KoreanTitle{Performance Analysis and Optimization of\\Memory Protection Unit in ARM Cortex-M4 STM32F446\\for Automotive ECU RTOS Environment}
+
+  \AuthorKoreanName{Yong-Hwi Cho}
+  \AuthorEnglishName{Yong-Hwi Cho}
+  \AuthorHanjaName{Yong-Hwi Cho}
+
+  \KoreanTypeofDegree{Bachelor of Engineering}
+  \EnglishTypeofDegree{Bachelor of Engineering}
+
+  \EnglishTypeofPaper{Bachelor Thesis}
+  \HanjaTypeofPaper{Bachelor Thesis}
+
+  % When you graduate. The month should be either February or August.
+  % YEAR + MONTH
+  \KoreanGraduateDate{February $2025$}
+  \EnglishGraduateDate{February $2025$}
+
+  % When your advisor signed your thesis.
+  % YEAR + MONTH + DAY
+  \KoreanSignedDate{November $25$th, $2025$}
+  \EnglishSignedDate{November $25$th, $2025$}
+
+  \EnglishSchoolName{Seoul National University School of Engineering}
+  \KoreanSchoolName{Seoul National University School of Engineering}
+
+  \EnglishDepartmentName{Department of Electrical and Computer Engineering}
+  \HanjaDepartmentName{Department of Electrical and Computer Engineering}
+  \KoreanDepartmentName{Department of Electrical and Computer Engineering}
+
+  \AdvisorKoreanName{Professor Paek Yunheung}
+  \AdvisorEnglishName{Professor Paek Yunheung}
+  \KoreanKeyWords{ARM Cortex-M4, Memory Protection Unit, Automotive ECU, Real-time Systems, Performance Analysis}
+  \EnglishKeyWords{ARM Cortex-M4, Memory Protection Unit, Automotive ECU, Real-time Systems, Performance Analysis}
+
+  % Document generation begins here.
+  % Front cover
+  \makefrontcover
+
+  % Proposal
+  \makeproposal
+
+  % English abstract
+  \pagenumbering{gobble}
+  \include{abs-english}
+  \cedp
+
+  %% Declare pages before the content body.
+  \frontmatter
+
+  \pagestyle{plain}
+	%% Table of Contents
+	\clearpage
+	\phantomsection
+    \tableofcontents*
+
+	%% List of Figures
+	\clearpage
+	\phantomsection
+    \listoffigures*
+
+	%% List of Tables
+	\clearpage
+	\phantomsection
+	\listoftables*
+
+  % Content body begins.
+  \mainmatter
+  \linespread{2}
+
+  % Page numbers appear at the middle-low region of each page.
+  \pagestyle{fancy}
+  \lhead{\leftmark}
+  \rhead{}
+  \chead{}
+  \cfoot{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+
+  % Chapters
+  \include{chapter1}
+  \cedp
+  \include{chapter2}
+  \cedp
+  \include{chapter3}
+  \cedp
+  \include{chapter4}
+  \cedp
+  \include{chapter5}
+  \cedp
+  \include{chapter6}
+  \cedp
+  \include{chapter7_experimental_results}
+  \cedp
+
+  \pagestyle{plain}
+    % Reference
+    \clearpage
+    \include{reference}
+    \cedp
+
+  % Korean abstract
+  \include{abs-korean}
+  \cedp
+
+\end{document}

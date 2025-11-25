@@ -1,0 +1,20 @@
+% -*- mode : latex; coding: utf-8 -*-
+\markboth{Abstract}{}
+\begin{EnglishAbstract}
+  RowHammer is a serious security threat to computing systems using DRAM since the first 
+  experimental analysis in 2014 \cite{FlippingBits}. Through repetitive activation of the DRAM row, 
+  electromagnetic inference causes charge leakage in DRAM cells. Even worse, technology scaling 
+  makes DRAM even more vulnerable to RowHammer attack \cite{Revisiting}. 
+  Many RowHammer mitigation systems have been proposed, but a lack of understanding of the internal DRAM structure 
+  poses inefficiency in the system.
+  In this paper, I point out some optimization points to enhance the 
+  current state-of-the-art RowHammer mitigation schemes using internal DRAM topologies in DDR4 memory system: 
+  Graphene \cite{Graphene} and Hydra \cite{Hydra}. I evaluate speedup between baseline and optimized 
+  version in Macsim with Ramulator \cite{MACSIM}, \cite{RAMULATOR} (cycle-accurate and trace-driven 
+  simulator, with 2-channel DDR4 configuration) with 2 synthetic adversarial attack patterns and 3 
+  memory-intensive workloads from SPEC CPU 2017 under the RowHammer threshold of 1K. 
+  Results show that with 4\% additional CAM in Graphene, an additional refresh was reduced by 
+  nearly 50\% in adversarial patterns and 64.7\% in normal workloads with a performance overhead reduced by 65.7\%. 
+  In the case of Hydra, an additional refresh was reduced by 91.4\% in adversarial pattern and 98.1\% in normal workloads 
+  with average performance overhead reduced by 71.7\%. 
+\end{EnglishAbstract}

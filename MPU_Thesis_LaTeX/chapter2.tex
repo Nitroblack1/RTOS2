@@ -1,0 +1,170 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{Background and Related Work}
+\label{sec:backgrounds}
+
+This chapter provides essential background information and reviews related work in areas fundamental to understanding MPU performance analysis in automotive ECU environments. We begin with an overview of ARM Cortex-M4 architecture and Memory Protection Unit functionality, followed by automotive RTOS requirements and existing performance measurement methodologies.
+
+\section{ARM Cortex-M4 Architecture}
+
+The ARM Cortex-M4 processor is a 32-bit RISC processor designed specifically for embedded applications requiring high performance and energy efficiency. The architecture features a 3-stage pipeline with Harvard memory architecture, enabling simultaneous instruction fetch and data access operations that contribute to its performance characteristics in real-time applications \cite{yiu2013definitive}.
+
+\subsection{Core Architecture Features}
+
+Key architectural features relevant to this research include:
+
+\textbf{Instruction Set Architecture}: The Cortex-M4 implements the ARMv7-M architecture with Thumb-2 instruction set, providing 32-bit performance with 16-bit instruction density. This design enables efficient code density while maintaining high performance, crucial for automotive ECU applications with limited memory resources.
+
+\textbf{Pipeline Organization}: The 3-stage pipeline consists of fetch, decode, and execute stages. While simpler than higher-performance ARM cores, this design provides predictable timing behavior essential for real-time automotive applications where worst-case execution time analysis is critical.
+
+\textbf{Memory System}: Harvard architecture with separate instruction and data buses enables simultaneous instruction fetch and data access. The architecture supports configurable memory regions with different access characteristics, directly relevant to MPU functionality and performance analysis.
+
+\subsection{Performance Characteristics}
+
+The STM32F446 implementation operates at up to 180MHz, providing 225 DMIPS peak performance. Key performance features include:
+
+\begin{itemize}
+    \item Single-cycle multiply instructions for efficient mathematical computations common in automotive control algorithms
+    \item Hardware divide instructions reducing software overhead for division operations
+    \item Optional floating-point unit (FPU) supporting single-precision operations required for automotive sensor data processing
+    \item Advanced High-performance Bus (AHB) architecture enabling efficient peripheral access
+\end{itemize}
+
+\subsection{Debug and Trace Capabilities}
+
+The Cortex-M4 includes comprehensive debug and trace capabilities essential for performance analysis:
+
+\textbf{Data Watchpoint and Trace (DWT) Unit}: Provides cycle-accurate performance monitoring through hardware counters. The DWT\_CYCCNT register increments with each processor cycle, enabling precise execution time measurement down to 5.56 nanoseconds at 180MHz operation.
+
+\textbf{Instrumentation Trace Macrocell (ITM)}: Supports real-time debugging and performance profiling through non-intrusive trace data collection, crucial for analyzing real-time system behavior without disturbing timing characteristics.
+
+\section{Memory Protection Unit Overview}
+
+The ARM Cortex-M4 MPU is an optional component providing hardware-enforced memory access control. Understanding MPU functionality and configuration options is fundamental to analyzing its performance impact in automotive applications.
+
+\subsection{MPU Architecture and Configuration}
+
+The STM32F446 implementation includes an 8-region MPU supporting the following protection attributes:
+
+\textbf{Memory Region Configuration}:
+\begin{itemize}
+    \item Up to 8 simultaneously active memory regions with independent attribute configuration
+    \item Minimum region size of 32 bytes with power-of-2 sizing up to 4GB
+    \item Configurable base addresses that must be aligned to region size boundaries
+    \item Sub-region disable functionality for fine-grained access control within larger regions
+\end{itemize}
+
+\textbf{Access Control Attributes}:
+\begin{itemize}
+    \item Privileged and unprivileged access permissions for implementing privilege separation
+    \item Read, write, and execute permission combinations enabling data execution prevention
+    \item Shareable and cacheable memory attributes for optimizing memory system performance
+    \item Memory ordering guarantees (strongly ordered, device, normal memory types)
+\end{itemize}
+
+\subsection{Protection Mechanisms}
+
+When enabled, the MPU validates every memory access against configured regions using hardware logic that operates in parallel with normal memory operations. This validation process introduces latency that varies based on several factors:
+
+\textbf{Access Validation Process}: Each memory access triggers hardware comparison against active region descriptors. Multiple regions may be checked in parallel, but the validation process adds cycles to memory access operations.
+
+\textbf{Fault Handling}: Access violations trigger Memory Management Fault exceptions, enabling system-level fault handling policies. The fault handling mechanism provides diagnostic information about violation types and addresses, supporting both security and safety requirements.
+
+\textbf{Dynamic Reconfiguration}: MPU regions can be reconfigured during runtime, particularly during context switches. This capability is essential for task isolation but introduces overhead that must be characterized for real-time applications.
+
+\section{Automotive ECU RTOS Requirements}
+
+Automotive ECUs operate under stringent constraints that combine real-time performance requirements with functional safety standards. Understanding these requirements is essential for evaluating MPU performance impact in automotive contexts.
+
+\subsection{Real-time Performance Requirements}
+
+Automotive applications exhibit diverse timing requirements based on their safety criticality and functional domains:
+
+\textbf{Engine Control Systems}: Require sub-millisecond response times for fuel injection timing and ignition control. These systems typically operate with 1-5ms control loop periods and must maintain deterministic behavior under all operating conditions.
+
+\textbf{Chassis Control Systems}: ABS, ESC, and traction control systems demand even tighter timing constraints, often requiring response times under 10ms for critical safety interventions.
+
+\textbf{Body Electronics}: Door controls, lighting systems, and comfort functions operate with more relaxed timing requirements, typically 50-100ms response times, but must still maintain predictable behavior.
+
+\subsection{Functional Safety Standards}
+
+ISO 26262 defines functional safety requirements for automotive systems, establishing Automotive Safety Integrity Levels (ASIL) that directly impact system design:
+
+\textbf{ASIL Classification}: Ranges from ASIL A (lowest integrity) to ASIL D (highest integrity), with higher levels requiring more stringent fault detection and mitigation mechanisms.
+
+\textbf{Memory Protection Requirements}: ASIL C and ASIL D systems typically require hardware-based memory protection to ensure fault isolation and prevent error propagation between safety-critical and non-critical functions.
+
+\textbf{Diagnostic Coverage}: Higher ASIL levels mandate diagnostic coverage requirements (≥90\% for ASIL C/D), making hardware-based fault detection mechanisms like MPU violation detection valuable for safety certification.
+
+\subsection{Security Requirements}
+
+Modern automotive systems face increasing cybersecurity threats requiring robust protection mechanisms:
+
+\textbf{Attack Surface Mitigation}: Connected vehicles present numerous attack vectors through wireless interfaces, diagnostic ports, and network communications. Memory protection helps limit attack impact by containing compromised software components.
+
+\textbf{Code Integrity}: Protection against code injection attacks and return-oriented programming requires hardware enforcement of execute permissions and control flow integrity.
+
+\section{Performance Measurement Methodologies}
+
+Accurate performance measurement in embedded systems requires specialized techniques that minimize measurement perturbation while providing sufficient precision for real-time analysis.
+
+\subsection{Cycle-Level Measurement Techniques}
+
+Hardware performance counters provide the most accurate measurement capability for embedded systems:
+
+\textbf{DWT Cycle Counter}: The ARM Cortex-M4 DWT unit provides zero-overhead cycle counting through dedicated hardware registers. The 32-bit cycle counter wraps every $2^{32}$ cycles (approximately 24 seconds at 180MHz), requiring careful handling for long-duration measurements.
+
+\textbf{Measurement Precision}: Cycle-level measurement enables analysis of timing variations at the instruction level, essential for understanding MPU overhead characteristics and their impact on real-time constraints.
+
+\subsection{Statistical Analysis for Real-time Systems}
+
+Real-time system performance exhibits statistical variation due to multiple factors:
+
+\textbf{Sources of Variation}: Pipeline effects, memory system latencies, interrupt timing, and cache behavior contribute to execution time variability that must be characterized statistically.
+
+\textbf{Appropriate Metrics}: Real-time systems require analysis of worst-case execution times, timing distribution characteristics, and jitter analysis rather than simple average performance measurements.
+
+\section{Related Work}
+
+Previous research in embedded system performance analysis and memory protection provides foundation for this automotive-specific study.
+
+\subsection{Embedded System Performance Analysis}
+
+Liu and Layland \cite{liu1973scheduling} established fundamental real-time scheduling theory that remains relevant for automotive ECU design. Their rate monotonic analysis provides mathematical framework for determining system schedulability under timing constraints.
+
+Buttazzo \cite{buttazzo2011hard} comprehensively covers hard real-time computing systems, including performance analysis techniques applicable to automotive embedded systems. The work emphasizes importance of worst-case execution time analysis for safety-critical applications.
+
+\subsection{Memory Protection in Embedded Systems}
+
+Recent work by Kleidermacher and Kleidermacher \cite{kleidermacher2012embedded} addresses embedded systems security, including memory protection mechanisms. However, their focus on general embedded applications lacks automotive-specific performance analysis.
+
+Anderson \cite{anderson2020security} provides comprehensive coverage of security engineering principles applicable to automotive systems, but does not address specific performance implications of hardware protection mechanisms in real-time contexts.
+
+\textbf{Tock Operating System Security Model}: A particularly relevant contribution to embedded systems security comes from the Tock OS project \cite{ayers2022tiered}, which introduces a novel three-tier trust model specifically designed for resource-constrained embedded systems. The Tock security architecture provides valuable insights for automotive MPU implementation strategies.
+
+The Tock threat model defines three distinct trust levels within the system architecture:
+\begin{enumerate}
+    \item \textbf{Untrusted Applications}: User-space applications that are completely isolated from each other and the kernel, similar to automotive application tasks requiring complete separation
+    \item \textbf{Trusted Kernel Capsules}: OS components (drivers, network stacks, virtualization layers) that are trusted for correctness but isolated from core system functionality
+    \item \textbf{Core Kernel}: Minimal trusted computing base including scheduler and board configuration, analogous to automotive safety kernel components
+\end{enumerate}
+
+This tiered approach enables efficient resource sharing while maintaining strong isolation guarantees. The Tock architecture demonstrates how hardware MPU can be effectively combined with language-based safety (Rust) to provide both security and performance in embedded environments. For automotive applications, this model suggests strategies for organizing ECU software where safety-critical functions (core kernel), comfort functions (capsules), and third-party applications can coexist with appropriate isolation levels.
+
+The Tock system's use of zero-cost capabilities for privilege management provides insights for automotive ECU design, where runtime overhead must be minimized while maintaining strict access control between functions of different criticality levels.
+
+Figure~\ref{fig:tock_architecture} illustrates the Tock system architecture, showing clear separation between userspace applications, kernel capsules, and the core kernel through both hardware (MPU) and software (Rust type system) enforcement. This architecture demonstrates practical implementation of multi-level trust in resource-constrained embedded systems, directly applicable to automotive ECU design where different software components must operate at varying trust levels while sharing limited hardware resources.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/tock_architecture}
+\caption{Tock Operating System Architecture showing three-tier trust model with hardware MPU isolation for applications and software isolation for kernel capsules. The architecture demonstrates efficient privilege separation suitable for automotive ECU environments.}
+\label{fig:tock_architecture}
+\end{figure}
+
+\subsection{Automotive Software Architecture}
+
+The AUTOSAR consortium \cite{autosar2021} has established industry standards for automotive software architecture, including recommendations for memory protection usage. However, detailed performance analysis of these recommendations remains limited in public literature.
+
+Recent automotive cybersecurity research \cite{checkoway2011comprehensive,miller2015remote} demonstrates critical need for robust isolation mechanisms in automotive systems, but focuses primarily on attack methodologies rather than protection system performance characteristics.
+
+This research addresses the gap in automotive-specific MPU performance analysis, providing detailed characterization necessary for implementing hardware-based protection in real-time automotive applications.

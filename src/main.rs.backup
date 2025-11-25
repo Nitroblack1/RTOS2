@@ -209,7 +209,7 @@ impl AppMetadata {
 }
 
 pub const MAX_APPS: usize = 16;
-pub const APP_STACK_POOL_BYTES: usize = 64 * 1024;  // 32KB → 64KB로 확대 (스택 풀 여유분)
+pub const APP_STACK_POOL_BYTES: usize = 8 * 1024;  // 8KB stack pool for single benchmark app
 pub const APP_STACK_POOL_WORDS: usize = APP_STACK_POOL_BYTES / 4;
 pub const MIN_APP_STACK_BYTES: usize = 1024;        // 256 → 1024 바이트로 확대
 pub const MIN_STACK_WORDS: usize = MIN_APP_STACK_BYTES / 4;
@@ -225,18 +225,18 @@ static mut APP_REGISTRY: [AppMetadata; MAX_APPS] = [AppMetadata::empty(); MAX_AP
 unsafe fn discover_linker_registered_apps() -> usize {
     // For now, manually register the apps until the linker section scanning is fully implemented
     // This represents what the linker would discover automatically
-    // let _fib_fn_addr = crate::apps::fibonacci::fibonacci as usize; // Disabled for benchmark
+    // let _fib_fn_addr = crate::apps::fibonacci::fibonacci as usize; // Temporarily disabled
 
     let discovered_apps = [
-        // Only benchmark apps active for memory optimization
-        /*  // Counter app temporarily disabled
+        // BENCHMARK MODE: Only benchmark app for clean measurement
+        /* // Counter app disabled for clean benchmark
         AppMetadata {
             id: 1,
             name: "counter",
             entry: crate::apps::counter::counter as usize,
             entry_fn: Some(crate::apps::counter::counter),
             stack_ptr: 0,
-            stack_size: 1024,
+            stack_size: 4096,  // Further increased to prevent stack overflow
             stack_ptr_fn: None,
         },
         */
@@ -278,14 +278,14 @@ unsafe fn discover_linker_registered_apps() -> usize {
             stack_ptr_fn: None,
         },
         */
-        /* // IPC and shared memory test apps - TEMPORARILY DISABLED
+        /* // IPC apps disabled for clean benchmark
         AppMetadata {
             id: 10,
             name: "producer",
             entry: crate::apps::producer::producer as usize,
             entry_fn: Some(crate::apps::producer::producer),
             stack_ptr: 0,
-            stack_size: 1024,  // Reduced for memory optimization
+            stack_size: 4096,  // Increased for stability
             stack_ptr_fn: None,
         },
         AppMetadata {
@@ -294,9 +294,11 @@ unsafe fn discover_linker_registered_apps() -> usize {
             entry: crate::apps::consumer::consumer as usize,
             entry_fn: Some(crate::apps::consumer::consumer),
             stack_ptr: 0,
-            stack_size: 1024,  // Reduced for memory optimization
+            stack_size: 4096,  // Increased for stability
             stack_ptr_fn: None,
         },
+        */
+        /*  // Temporarily keep shared_counter disabled to avoid complexity
         AppMetadata {
             id: 12,
             name: "shared_counter",
@@ -317,7 +319,7 @@ unsafe fn discover_linker_registered_apps() -> usize {
         //     stack_size: 1024,  // 384 → 1024 바이트로 증가 (안전성)
         //     stack_ptr_fn: None,
         // },
-        // Only one benchmark app for minimum memory usage
+        // Benchmark app with sufficient stack
         AppMetadata {
             id: 20,
             name: "benchmark_context_switch",

@@ -1,0 +1,16 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{Conclusion and Future Work} \label{sec:Conclusion}
+In this study, I analyzed two state-of-the-art RH mitigation schemes and point out the root cause of their inefficiencies. 
+Utilizing internal DRAM mapping and each row's unique $Flip_{th}$, I designed a more efficient version of each design:
+Graphene-op and Hydra-op. All of those designs are implemented in Macsim with Ramulator. I evaluated the performance
+and the number of mitigation actions under benign and malicious memory access. In Graphene, the number of refresh actions 
+for RH mitigation was reduced by 50\% in malicious workload and 64.7\% in SPEC2017. 
+Due to reduced mitigation, performance overhead was reduced by 65.7\% in normal workloads. 
+In the case of Hydra, the number of refreshes was reduced by 91.4\% in the attack pattern and 98.1\% in normal workloads. 
+Performance overhead was reduced by 71.7\% in normal workloads. 
+
+Although Hydra-op does not implement victim tracking, it is orthogonal to the current scheme and can be easily extended.
+ Also, Hydra-op can be integrated with a row-swapping mechanism for further performance gain. As discussed in \ref{sec:overall-performance},
+ the major limitation of Hydra-op is extra DRAM access due to additional row metadata in RCT. To remove such performance overhead, 
+ we can think of the following scheme: If Hydra-op control logic finds multiple aggressor rows in the same row-group, 
+ it can swap aggressors to other rows in a different row-group. This can effectively alleviate contention for a counter in the same row-group.

@@ -1,0 +1,30 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{Related Work} \label{sec:related-work}
+
+In this chapter, I discuss currently proposed RH mitigations in detail. Research can be classified into three categories: 
+mitigation using Near-Row-Refresh, mitigations via swapping, and other alternatives
+
+\noindent\textbf{Mitigation using NRR.} 
+The majority of prior proposals \cite{FlippingBits}, \cite{CBT}, \cite{Hydra}, \cite{TWICE}, 
+\cite{Graphene} use counter or probabilistic approach to invoke refresh-based mitigation, where adjacent rows of aggressor row
+restore leaked charges by row refreshing. Although refreshing victims is a popular choice, the tracker residing in MC
+is unaware of refreshed victims, leading to security breakage such as Half-Double \cite{Half_Double}.  
+
+\noindent\textbf{Mitigation via Swapping Rows.}
+In order to overcome the security vulnerability of NRR, Saileshwar et al \cite{RRS} proposed RRS,
+a novel mechanism of swapping the aggressor row to another random row in the DRAM bank. 
+This breaks the spatial relation between victim and aggressor row, effectively compensating for NRR's weakness. 
+However, since an attacker can still access swapped rows, RRS must use a threshold of $Flip_{th}/12$ to ensure required level of security. 
+Recently proposed AQUA \cite{AQUA} targets such performance overhead of RRS by setting predefined swap-region inside DRAM. 
+Since all aggressor rows are swapped to swap-region where the attacker can't access, AQUA does not suffer from a low threshold
+and achieve higher performance. 
+
+\noindent\textbf{Other Alternatives.}
+BlockHammer \cite{BlockHammer} is an RH mitigation mechanism by throttling aggressor row from accessing DRAM within tREFW
+after reaching a predefined threshold. It uses a bloom filter to classify rows between malign and benign accesses. Although
+ it is lightweight and incurs small performance overhead, it is susceptible to a denial-of-service attack where an attacker
+ repetitively accesses a shared region in a DRAM such as a shared library or application. This can lead to a serious slowdown of
+ the entire system. Another promising area of research is manipulating DRAM architecture for stronger security and higher performance,
+ such as CROW \cite{CROW}. CROW adds additional \textit{copy-row} to each subarray. Copy-rows are used to save aggressor rows
+ at RH attack as well as speed up read/write by faster voltage sensing. Since rows can only be copied to copy-rows at
+ the same subarray, CROW cannot provide a security guarantee for concentrated RH attacks targeting a single subarray. 

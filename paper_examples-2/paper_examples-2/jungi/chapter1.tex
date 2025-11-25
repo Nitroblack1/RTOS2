@@ -1,0 +1,58 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{Introduction}
+
+DRAM has long been a popular choice for main memory in a computing system, 
+and its cells are becoming smaller and closer to each other due to technology scaling. 
+This makes DRAM vulnerable to inter-cell interference. \textit{RowHammer} (RH) attack 
+is one type of such interference, where a burst of ACT command to a single DRAM row causes
+ a charge leak in adjacent rows. 
+
+This problem is a major threat to DRAM reliability, and thus many solutions have been proposed 
+by both industry and academia. Recent protection schemes are based on architectural solutions, 
+which implement hardware logic to detect hammering rows and handle them proactively. 
+This class of mitigation scheme can be divided into two parts: probabilistic \cite{FlippingBits} and 
+counter-based \cite{Graphene}, \cite{Hydra}, \cite{TWICE}, \cite{CBT}. 
+One of the most famous probabilistic schemes is PARA \cite{FlippingBits}, which refreshes adjacent rows 
+with small predefined probability. Although it doesn't require complex hardware logic, 
+it invokes a substantial amount of unnecessary refreshes to ensure the required security level. 
+However, counter-based protection only refreshes victim rows deterministically, making it an 
+attractive choice. \textit{Graphene} \cite{Graphene} is best known counter-based protection 
+scheme which uses Misra-Gries streaming algorithm \cite{MISRA-GRIES} to track hammering rows. 
+It accurately tracks a set of rows that were activated more than a certain threshold from incoming commands.
+
+The metric used to characterize how a DRAM chip is vulnerable to RH attack is $Flip_{th}$, 
+which indicates the minimum number of row activations (ACT) required to induce a bit-flip in adjacent rows. 
+Recent studies show that $Flip_{th}$ has dropped from 139K (DDR3) to 50K in DDR4 and 4.8K for LPDDR4 
+\cite{FlippingBits}, \cite{TRRespass}, \cite{Revisiting}. As technology continues to scale, 
+$Flip_{th}$ will likely decrease further, even lower than 1K. \textit{Hydra} \cite{Hydra} is a 
+counter-based mitigation scheme targeting such ultra-low threshold with acceptable storage overhead. 
+It uses the SRAM counter to track ACTs of the DRAM row group and uses the DRAM counter to track 
+each row when the group counter reaches a certain threshold. 
+
+Although promising, all of these mitigation strategies are inefficient in various aspects because there 
+are no public documents available for internal DRAM microarchitecture. In this paper, I point out some 
+optimization ways of \textit{Graphene} and \textit{Hydra} if such internal DRAM topologies are available. 
+I implemented \textit{Graphene}, \textit{Hydra}, and optimized version of each in Macsim \cite{MACSIM} and 
+Ramulator \cite{RAMULATOR}. Using these simulators, I evaluated storage overhead, the number of additional refreshes, and 
+performance in synthetic and normal workloads such as SPEC CPU 2017. Below are the key contributions of this work.
+% TODO: poor listing!
+\begin{itemize}
+  \item Graphene optimization: As DRAM's internal row mapping is not known, 
+  the hardware tracker doesn't know the adjacent rows of a hammered row. So tracking algorithm of 
+  Graphene always has to assume the attack is done as \textit{double-sided}, where one victim row is adjacent to two hammered rows. 
+  I tracked victim rows instead of hammering rows and analyze the benefits and security of the modified algorithm.
+  \item \textit{Hydra} optimization: Recent comprehensive analysis of DDR4 device showed that due to design and manufacturing factors, 
+  $Flip_{th}$ variation exists across rows in DRAM. In the optimized version of  Hydra, 
+  I stored the encoded $Flip_{th}$ value in each row's counter in DRAM.
+  \item Evaluation: I implemented the above optimization points in a cycle-level  
+  simulator and evaluated storage overhead, additional refresh, and performance. 
+  In Graphene, an additional refresh was reduced by 50\% in attack patterns and average performance overhead was reduced by 65.7\%
+  in normal workloads with a negligible increase in table size. In the case of Hydra, an additional refresh was reduced by 91.4\% in attack patterns and performance overhead was reduced by 71.7\% in normal workloads.
+\end{itemize}
+
+In this paper, I first illustrate the background of DRAM structure and RH mitigation 
+schemes of Graphene and Hydra in Chapter \ref{sec:Backgrounds}. In Chapter \ref{sec:Optimization}, 
+I explain improvement points and implementation details with security analysis. After that, I compare storage overhead, 
+the number of an additional refreshes, and the performance (IPC) of each scheme's baseline and optimized version 
+in Chapter \ref{sec:Evaluation}. Finally, Chapter \ref{sec:related-work} summarizes related work in progress, and
+Chapter \ref{sec:Conclusion} concludes this paper and suggests possible future works.

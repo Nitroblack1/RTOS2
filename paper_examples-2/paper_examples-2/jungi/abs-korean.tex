@@ -1,0 +1,17 @@
+% -*- mode : latex; coding: utf-8 -*-
+\begin{KoreanAbstract}
+  DRAM RowHammer 공격은 2014년 \cite{FlippingBits} 실험적으로 입증된 이후 컴퓨팅 시스템 보안에 
+  중대한 위협으로 작용하였다. RowHammer 공격은 DRAM의 특정 wordline을 반복적으로 활성화 시켜 전자기파 
+  간섭으로 인해 주변 다른 row의 축전기에서 전하가 빠져나가도록 유도하는 것으로, 반도체 공정이 점점 더 
+  미세해짐에 따라 더 빈번하게 발생하고 있다 \cite{Revisiting}. RowHammer 공격을 막는 다양한 방식이 
+  연구되었지만, DRAM 내부 구조가 공개되지 않았기 때문에 효율 측면에서 한계가 존재하였다. 
+  본 논문에서는 DDR4 내부 구조가 공개되었을 때 제시된 RowHammer 방어전략들 중 가장 최신 방식인
+   Grpahene \cite{Graphene} 과 Hydra \cite{Hydra} 에서 개선할 수 있는 부분들을 제시하였다. 
+   RowHammer 공격이 최소 1K의 ACT 명령어에서 축전기의 전하를 충분히 빠져나가게 한다고 가정하고 
+   Macsim \cite{MACSIM} 과 Ramulator \cite{RAMULATOR} (2 channel DDR4) 시뮬레이터를 사용해 
+   2개의 RowHammer 공격 패턴과 SPEC CPU 2017에서 메모리 접근이 가장 많은 3개의 트레이스를 사용해 실험을 진행하였다.
+    실험 결과 Graphene에서는 추가적인 REF 명령어의 수가 기존에 비해 공격 패턴에서는 50\%, SPEC 트레이스에서는 
+    64.7\% 감소하였으며 IPC 손실을 65.7\% 감소시킬 수 있었다. 
+    Hydra의 경우 추가적인 REF 명령어 수가 기존에 비해 공격 패턴에서는 91.4\%, SPEC 트레이스에서는 98.1\% 감소하였고 IPC 손실을 
+    71.7\% 감소시킨 결과를 얻었다. 
+\end{KoreanAbstract}

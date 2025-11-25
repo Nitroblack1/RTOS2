@@ -1,0 +1,20 @@
+% -*- mode : latex; coding: utf-8 -*-
+\markboth{Abstract}{}
+\begin{EnglishAbstract}
+
+Memory Protection Unit (MPU) implementation is critical for automotive ECUs to meet ISO 26262 functional safety standards [3]. However, performance implications of hardware-based memory protection in real-time automotive systems remain poorly understood. This thesis presents comprehensive performance analysis of MPU-enabled systems using ARM Cortex-M4 STM32F446 microcontrollers.
+
+The research employs cycle-accurate measurements through the Data Watchpoint and Trace (DWT) unit to characterize MPU overhead [1]. A custom Rust-based RTOS serves as the evaluation platform, representing realistic automotive workloads across engine control, body electronics, and safety systems.
+
+Comprehensive experimental results reveal exceptionally low MPU overhead through 10 independent test iterations. Context switching exhibits only \textbf{1.25\% overhead (20.7 ± 2.0 cycles at 180MHz)}, representing 115 nanoseconds additional latency. Statistical analysis demonstrates excellent measurement reliability with 99.9\% confidence intervals and consistent convergence to identical results.
+
+Performance impact on automotive real-time tasks is negligible: engine control applications (1ms periods) experience <0.025\% overhead, chassis control systems (10ms deadlines) see <0.01\% impact, and body control functions show unmeasurable performance effects. The measured overhead is 12-20× lower than software-based protection alternatives.
+
+Validation conclusively demonstrates that optimized MPU systems easily exceed automotive timing requirements across all ASIL levels. The 20.7-cycle overhead provides deterministic, predictable performance suitable for worst-case execution time analysis in safety-critical applications.
+
+Results validate practical feasibility of hardware-based memory protection for production automotive systems. Optimized MPU implementation satisfies both functional safety and real-time constraints, enabling robust security without compromising responsiveness.
+
+\vspace{0.5cm}
+\noindent \textbf{Keywords:} ARM Cortex-M4, Memory Protection Unit, Automotive ECU, Real-time Systems, ISO 26262, Performance Analysis, STM32F446, RTOS, Memory Safety, Functional Safety
+
+\end{EnglishAbstract}

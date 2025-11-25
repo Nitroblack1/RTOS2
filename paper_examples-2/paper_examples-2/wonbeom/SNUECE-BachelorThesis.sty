@@ -1,0 +1,146 @@
+% -*- mode : latex; coding: utf-8 -*-
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                                                              %
+%     Made by Jaewon Chung. Find me at: https://jaewonchung.me/about.html      %
+%                                                                              %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\ProvidesPackage{SNUECE-BachelorThesis}
+\def\contentsname{Contents}
+\def\listfigurename{List of Figures}
+\def\listtablename{List of Tables}
+\def\refname{Reference}
+\def\bibname{Reference}
+\def\indexname{Index}
+\def\figurename{Figure}
+\def\tablename{Table}
+\def\appendixname{Appendix}
+\def\summaryname{Abstract}
+
+%% About the thesis
+\makeatletter
+\def\KoreanTypeofDegree#1{\gdef\korean@degreetype{#1}}
+\def\EnglishTypeofDegree#1{\gdef\english@degreetype{#1}}
+\def\EnglishTypeofPaper#1{\gdef\english@papertype{#1}}
+\def\HanjaTypeofPaper#1{\gdef\hanja@papertype{#1}}
+\def\EnglishTitle#1{\gdef\english@title{#1}}
+\def\KoreanTitle#1{\gdef\korean@title{#1}}
+\def\KoreanGraduateDate#1{\gdef\korean@graduatedate{#1}}
+\def\EnglishGraduateDate#1{\gdef\english@graduatedate{#1}}
+\def\KoreanSignedDate#1{\gdef\korean@signeddate{#1}}
+\def\EnglishSignedDate#1{\gdef\english@signeddate{#1}}
+\def\AuthorKoreanName#1{\gdef\korean@authorname{#1}}
+\def\AuthorEnglishName#1{\gdef\english@authorname{#1}}
+\def\AuthorHanjaName#1{\gdef\hanja@authorname{#1}}
+\def\AdvisorKoreanName#1{\gdef\korean@advisorname{#1}}
+\def\AdvisorEnglishName#1{\gdef\english@advisorname{#1}}
+\def\EnglishKeyWords#1{\gdef\english@keywords{#1}}
+\def\KoreanKeyWords#1{\gdef\korean@keywords{#1}}
+\def\EnglishSchoolName#1{\gdef\english@schoolname{#1}}
+\def\KoreanSchoolName#1{\gdef\korean@schoolname{#1}}
+\def\EnglishDepartmentName#1{\gdef\english@departmentname{#1}}
+\def\KoreanDepartmentName#1{\gdef\korean@departmentname{#1}}
+\def\HanjaDepartmentName#1{\gdef\hanja@departmentname{#1}}
+
+%% Font sizes
+\newcommand{\titlepagelargesizenormal}[1]{{\fontsize{21pt}{25pt} #1}}
+\newcommand{\titlepagesmallsizenormal}[1]{{\fontsize{16pt}{20pt} #1}}
+\newcommand{\titlepagelargesizebf}[1]{{\fontsize{21pt}{25pt} \textbf{#1}}}
+\newcommand{\titlepagesmallsizebf}[1]{{\fontsize{16pt}{20pt} \textbf{#1}}}
+\newcommand{\subtitlesizebf}[1]{{\fontsize{21pt}{25pt} \textbf{#1}}}
+
+%% Defining the \cedp command
+\newcommand{\cedp}{\newpage{\pagestyle{empty}\cleardoublepage}}
+
+%% The front cover
+\newcommand{\makefrontcover}{%
+  \thispagestyle{empty} \noindent%  
+  \begin{spacing}{2.0}
+  \vskip 5cm %
+  \begin{center}
+    \titlepagesmallsizenormal{\hanja@papertype} \\ %
+    \vskip 2cm %
+	\titlepagelargesizebf{\english@title} \\ %
+	\vskip 0.5cm %
+    \titlepagesmallsizebf{(\korean@title)} \\ %
+    \vfill %
+    \titlepagesmallsizenormal{\korean@graduatedate} \\ %
+    \vskip 4cm %
+    \titlepagesmallsizenormal{\korean@schoolname} \\ %
+    \vskip 1cm %
+    \titlepagesmallsizenormal{\hanja@departmentname} \\ %
+    \vskip 1cm %
+	\titlepagesmallsizenormal{\hanja@authorname} \\ %
+	\vskip 3cm %
+  \end{center}
+  \end{spacing}
+  \newpage %
+}
+
+%% The proposal page
+\newcommand{\makeproposal}{%
+  \thispagestyle{empty} \noindent%
+  \begin{spacing}{2.0}
+  \vskip 7cm %
+  \begin{center}
+    \titlepagelargesizebf{\english@title} \\ %
+    \vskip 1cm %
+    \titlepagesmallsizenormal{指導敎授 \korean@advisorname} \\ %
+    \vskip 1cm %
+    \titlepagesmallsizenormal{이 논문을 \korean@degreetype 학위 논문으로 제출함.} \\ %
+    \vskip 4cm %
+    \titlepagesmallsizenormal{\korean@schoolname} \\ %
+    \vskip 1cm %
+    \titlepagesmallsizenormal{\hanja@departmentname} \\%
+    \vskip 1cm %
+    \titlepagesmallsizenormal{\korean@authorname} \\ %
+    \vfill %
+    \titlepagesmallsizenormal{\korean@authorname 의 \korean@degreetype 학위 논문을 인준함.} \\ %
+    \vskip 1cm %
+    \titlepagesmallsizenormal{\korean@signeddate} \\ %
+    \vskip 1cm %
+    \titlepagesmallsizenormal{지도교수 \hspace{1cm} \korean@advisorname \hspace{1cm} $($인$)$} \\ %
+    \vskip 4cm %
+  \end{center}
+  \end{spacing}
+  \newpage
+}
+
+%% English abstract page
+\newenvironment{EnglishAbstract}{%
+  \thispagestyle{empty} %
+  \phantomsection %
+  \vskip 3cm %
+  \begin{center}
+    \subtitlesizebf{ABSTRACT} \\ %
+    \vskip 10mm
+  \end{center}
+  \vskip 8mm
+  \begin{spacing}{2.0}
+}{
+  \end{spacing}
+  \vfill  
+  \noindent \textbf{Keyword: }~\english@keywords \\ %   
+  \medskip
+  \newpage
+}
+
+%% Korean abstract page
+\newenvironment{KoreanAbstract}{%
+  \thispagestyle{empty} %
+  \phantomsection %
+  \vskip 3cm %
+  \begin{center}
+    \subtitlesizebf{秒錄} \\ %
+    \vskip 10mm
+  \end{center}
+  \vskip 8mm
+  \begin{spacing}{2.0}
+}{
+  \end{spacing}
+  \vfill  
+  \noindent \textbf{주요어: }~\korean@keywords \\ %   
+  \medskip
+  \newpage
+}

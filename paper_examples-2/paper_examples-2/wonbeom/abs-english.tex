@@ -1,0 +1,7 @@
+% -*- mode : latex; coding: utf-8 -*-
+\markboth{Abstract}{}
+\begin{EnglishAbstract}
+
+  Modern datacenter applications like DL, AI have increasing demand for large memory capacity. However, processor has limited number of DIMM pins. This memory shortage problem should be solved for future datacenter performance. One of the most popular solution is a memory disaggregation via CXL interconnection \cite{CXL}. By using CXL attached memory, we can scale memory capacity regardless of number of DIMM pins on processor. In this work, I implemented cycle-accurate and trace-driven CXL type 3 device simulator that uses CXL.mem protocol. By attaching this simulator to MacSim (cycle-accurate and trace-driven x86 architecture simulator) \cite{MACSIM}, I evaluated the performance of 4-core simulation for 8 different memory intensive workloads from SPEC CPU 2006. Results show that using only CXL attached memory can degrade IPC up to 40\%, on average 20\% compared to the case when using only local DRAM memory. Also, read latency of CXL attached memory is $2\times$ slower than that of local DRAM memory on average. If CXL attached memory is used with local DRAM memory together, it's possible to reduce read latency of local DRAM memory by 18\%.
+  
+\end{EnglishAbstract}

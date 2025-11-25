@@ -1,0 +1,120 @@
+% -*- mode : latex; coding: utf-8 -*-
+% ARM Cortex-M4 MPU Performance Analysis Thesis
+% Author: Yong-Hwi Cho
+
+\documentclass[12pt,a4paper,oneside]{report}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the format %%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2cm,top=1.5cm,bottom=1.5cm]{geometry}
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{algorithm2e}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{url}
+\usepackage{setspace}
+\usepackage{multirow}
+\onehalfspacing
+
+% Code listing setup
+\lstset{
+    backgroundcolor=\color{gray!10},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    language=C
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Title Page Information %%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{
+    \textbf{Performance Analysis and Optimization of\\
+    Memory Protection Unit in ARM Cortex-M4 STM32F446\\
+    for Automotive ECU RTOS Environment}
+}
+\author{
+    \textbf{Yong-Hwi Cho}\\
+    \vspace{0.5cm}
+    Department of Electrical and Computer Engineering\\
+    Seoul National University School of Engineering\\
+    \vspace{0.5cm}
+    Bachelor Thesis\\
+    February 2025
+}
+\date{}
+
+\begin{document}
+
+% Title page
+\maketitle
+\thispagestyle{empty}
+
+% Approval page
+\newpage
+\thispagestyle{empty}
+\vspace*{2cm}
+\begin{center}
+\large
+Performance Analysis and Optimization of\\
+Memory Protection Unit in ARM Cortex-M4 STM32F446\\
+for Automotive ECU RTOS Environment
+
+\vspace{1.5cm}
+\normalsize
+指導敎授 \textbf{백윤흥}
+
+\vspace{1cm}
+이 논문을 공학 학사학위 논문으로 제출함.
+
+\vspace{1.5cm}
+서울대학교 공과 대학\\
+電氣·情報工學部\\
+\textbf{조용휘}
+
+\vspace{1.5cm}
+조용휘의 공학 학사학위 논문을 인준함.
+
+\vspace{1cm}
+2025년 2월
+
+\vspace{1.5cm}
+지도교수 \hspace{1cm} \textbf{백윤흥} \hspace{1cm} (인)
+\end{center}
+
+% Abstract page
+\newpage
+\begin{abstract}
+This thesis analyzes Memory Protection Unit (MPU) performance in ARM Cortex-M4 STM32F446 for automotive ECU applications. Using cycle-accurate DWT measurements, we characterize MPU overhead in context switching, IPC, and memory operations with a custom Rust RTOS.
+
+Key findings show MPU introduces 25\% context switching overhead and 32\% IPC overhead. However, optimization techniques including lazy reconfiguration and region caching reduce combined overhead to 8-10\%. The research validates MPU compatibility with automotive real-time constraints across ECU categories while supporting ISO 26262 functional safety requirements.
+
+Results demonstrate that optimized MPU protection maintains real-time performance while providing essential memory isolation for automotive safety standards, enabling simultaneous achievement of high safety integrity (ASIL C/D) and real-time performance requirements.
+
+\textbf{Keywords:} ARM Cortex-M4, Memory Protection Unit, Automotive ECU, Real-time Systems, Performance Analysis
+\end{abstract}
+
+% Table of contents
+\newpage
+\tableofcontents
+
+% Main content
+\newpage
+\setcounter{page}{1}
+
+\input{chapter1}
+\input{chapter2}
+\input{chapter3}
+\input{chapter4}
+
+% References
+\newpage
+\input{reference}
+
+\end{document}

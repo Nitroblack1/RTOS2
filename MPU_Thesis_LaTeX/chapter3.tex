@@ -1,0 +1,269 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{System Design and Implementation}
+\label{sec:system-design}
+
+This chapter describes the system design and implementation of the evaluation platform used to analyze MPU performance in automotive ECU environments. The platform consists of STM32F446 hardware, custom Rust-based RTOS implementation, MPU configuration management, and performance measurement infrastructure designed for cycle-accurate analysis.
+
+\section{Hardware Platform: STM32F446}
+
+The STM32F446RE microcontroller serves as the evaluation platform, representing typical automotive-grade Cortex-M4 implementations. This device provides representative performance characteristics and MPU functionality found in production automotive ECU systems.
+
+\subsection{Core Specifications}
+
+The STM32F446RE provides the following specifications relevant to automotive ECU applications:
+
+\begin{itemize}
+    \item ARM Cortex-M4F processor with single-precision FPU
+    \item 180MHz maximum operating frequency providing 225 DMIPS performance
+    \item 512KB Flash memory for application code and configuration data
+    \item 128KB SRAM for runtime data and task stacks
+    \item 8-region Memory Protection Unit with sub-region disable capability
+\end{itemize}
+
+\subsection{Automotive-Relevant Features}
+
+The STM32F446 includes features specifically designed for automotive environments:
+
+\textbf{Operating Conditions}: Extended temperature range (-40°C to +105°C) and high electromagnetic compatibility (EMC) robustness ensure reliable operation in harsh automotive environments.
+
+\textbf{Communication Interfaces}: CAN bus interface enables integration with automotive networks, while multiple UART, SPI, and I2C interfaces support sensor and actuator communication typical in automotive applications.
+
+\textbf{Power Management}: Advanced power management capabilities including multiple low-power modes support automotive power budget requirements and enable efficient operation during vehicle standby states.
+
+\subsection{Development Platform Configuration}
+
+The evaluation uses an STM32F446RE Nucleo development board configured for representative automotive operation:
+
+\textbf{Clock Configuration}: The system operates at maximum 180MHz frequency using an external high-speed crystal oscillator, ensuring timing accuracy required for cycle-precise measurements.
+
+\textbf{Memory Layout}: The memory configuration follows automotive ECU conventions with clear separation between program code, runtime data, and peripheral memory regions to enable meaningful MPU protection analysis.
+
+\section{Rust-based RTOS Implementation}
+
+This research implements a custom RTOS in Rust, a systems programming language offering memory safety guarantees that complement hardware-based protection. The RTOS design follows automotive best practices while enabling detailed performance analysis.
+
+\subsection{Language Choice Rationale}
+
+Rust provides several advantages for automotive ECU development that justify its selection for this research:
+
+\textbf{Memory Safety}: Compile-time memory safety verification eliminates entire classes of vulnerabilities, complementing hardware MPU protection with software-level guarantees.
+
+\textbf{Zero-Cost Abstractions}: Rust's abstraction mechanisms compile to efficient machine code without runtime overhead, essential for meeting automotive performance requirements.
+
+\textbf{Deterministic Behavior}: Absence of garbage collection and predictable memory allocation patterns support real-time automotive applications requiring deterministic timing behavior.
+
+\subsection{RTOS Architecture}
+
+The RTOS implements essential functionality required for automotive ECU operation:
+
+\begin{algorithm}[h]
+\SetAlgoLined
+\KwResult{Task scheduling and MPU management}
+\SetKwFunction{FSchedule}{schedule}
+\SetKwFunction{FContextSwitch}{context\_switch}
+\SetKwFunction{FConfigMPU}{configure\_mpu}
+
+\SetKwProg{Fn}{Function}{:}{}
+\Fn{\FSchedule{current\_task}}{
+    next\_task $\leftarrow$ priority\_queue.pop()\;
+    \If{next\_task.mpu\_config $\neq$ current\_task.mpu\_config}{
+        \FConfigMPU{next\_task.mpu\_config}\;
+    }
+    \FContextSwitch{current\_task, next\_task}\;
+}
+\caption{Task Scheduling with MPU Management}
+\end{algorithm}
+
+\textbf{Task Management}: The task management system implements priority-based preemptive scheduling with round-robin scheduling within priority levels. Each task includes metadata for MPU configuration, enabling automatic memory protection setup during context switches.
+
+\textbf{Memory Management}: Static memory allocation eliminates heap fragmentation and provides deterministic memory access patterns. Task stacks are allocated at compile time with MPU guard regions to detect stack overflow conditions.
+
+\textbf{Synchronization Primitives}: The RTOS provides mutexes, semaphores, and message queues with priority inheritance support to prevent priority inversion in safety-critical automotive applications.
+
+\subsection{Hardware Abstraction Layer}
+
+The hardware abstraction layer (HAL) provides safe interfaces to STM32F446 peripherals while enabling performance measurement:
+
+\begin{lstlisting}[language=Rust, caption=MPU Configuration Interface]
+pub struct MpuManager {
+    regions: [Option<MpuRegion>; 8],
+    active_config: MpuConfiguration,
+}
+
+impl MpuManager {
+    pub unsafe fn configure_region(
+        &mut self,
+        id: RegionId,
+        region: MpuRegion
+    ) -> Result<(), MpuError> {
+        // Configure MPU region with cycle counting
+        let start_cycles = dwt::get_cycles();
+        self.write_mpu_registers(id, &region);
+        let end_cycles = dwt::get_cycles();
+
+        // Record configuration overhead
+        self.record_config_overhead(end_cycles - start_cycles);
+        Ok(())
+    }
+}
+\end{lstlisting}
+
+\section{MPU Configuration and Management}
+
+The MPU implementation provides comprehensive memory protection while enabling detailed performance analysis of protection overhead.
+
+\subsection{Memory Region Strategy}
+
+The MPU configuration strategy balances security requirements with performance considerations:
+
+\textbf{Region 0 - Flash Memory}:
+\begin{itemize}
+    \item Address Range: 0x08000000 - 0x0807FFFF (512KB)
+    \item Attributes: Cacheable, Execute/Read permissions
+    \item Purpose: Program code protection with execute permission enforcement
+\end{itemize}
+
+\textbf{Region 1 - System RAM}:
+\begin{itemize}
+    \item Address Range: 0x20000000 - 0x2001FFFF (128KB)
+    \item Attributes: Cacheable, Read/Write permissions (no execute)
+    \item Purpose: Data memory with execute prevention for security
+\end{itemize}
+
+\textbf{Region 2 - Peripheral Memory}:
+\begin{itemize}
+    \item Address Range: 0x40000000 - 0x5FFFFFFF (512MB)
+    \item Attributes: Device memory, Read/Write permissions
+    \item Purpose: Hardware register access with appropriate ordering guarantees
+\end{itemize}
+
+\textbf{Regions 3-7 - Task-Specific Protection}:
+Dynamic regions configured per task for stack isolation and data protection, enabling fine-grained memory isolation between automotive software components.
+
+\subsection{Dynamic MPU Reconfiguration}
+
+Context switches require efficient MPU reconfiguration to maintain protection while minimizing overhead:
+
+\begin{lstlisting}[language=Rust, caption=Context Switch MPU Update]
+unsafe fn context_switch_with_mpu(
+    from_task: &mut TaskContext,
+    to_task: &TaskContext
+) {
+    // Measure context switch timing
+    let start_cycles = dwt::get_cycles();
+
+    // Save current task state
+    save_task_registers(from_task);
+
+    // Update MPU if configuration differs
+    if from_task.mpu_config != to_task.mpu_config {
+        mpu_disable();
+        configure_task_regions(&to_task.mpu_config);
+        mpu_enable();
+    }
+
+    // Load new task state
+    load_task_registers(to_task);
+
+    let end_cycles = dwt::get_cycles();
+    record_context_switch_time(end_cycles - start_cycles);
+}
+\end{lstlisting}
+
+\subsection{Optimization Strategies}
+
+Several optimization techniques minimize MPU overhead while maintaining security properties:
+
+\textbf{Lazy Reconfiguration}: MPU regions are updated only when task memory requirements differ, avoiding unnecessary reconfiguration overhead for tasks with identical memory layouts.
+
+\textbf{Region Caching}: Frequently used MPU configurations are cached to reduce setup time during context switches, particularly beneficial for periodic automotive control tasks.
+
+\textbf{Batch Configuration}: Multiple MPU regions are configured simultaneously during single MPU disable periods, minimizing the time window where memory protection is inactive.
+
+\section{Performance Measurement Infrastructure}
+
+Accurate performance measurement requires specialized infrastructure that provides cycle-accurate timing without introducing measurement artifacts.
+
+\subsection{DWT-based Cycle Counting}
+
+The measurement infrastructure utilizes the ARM Cortex-M4 DWT unit for precise timing:
+
+\begin{lstlisting}[language=Rust, caption=DWT Cycle Counter Implementation]
+mod dwt {
+    const DWT_CTRL: *mut u32 = 0xE0001000 as *mut u32;
+    const DWT_CYCCNT: *mut u32 = 0xE0001004 as *mut u32;
+
+    pub unsafe fn init() {
+        // Enable DWT cycle counter
+        let mut ctrl = ptr::read_volatile(DWT_CTRL);
+        ctrl |= 0x1; // CYCCNTENA bit
+        ptr::write_volatile(DWT_CTRL, ctrl);
+
+        // Reset counter to zero
+        ptr::write_volatile(DWT_CYCCNT, 0);
+    }
+
+    #[inline(always)]
+    pub fn get_cycles() -> u32 {
+        unsafe { ptr::read_volatile(DWT_CYCCNT) }
+    }
+
+    pub fn cycles_to_microseconds(cycles: u32) -> f32 {
+        cycles as f32 / 180.0 // 180MHz operation
+    }
+}
+\end{lstlisting}
+
+\subsection{Statistical Analysis Framework}
+
+The measurement framework includes comprehensive statistical analysis capabilities:
+
+\begin{lstlisting}[language=Rust, caption=Benchmark Statistics]
+pub struct BenchmarkStats {
+    pub samples: Vec<u32>,
+    pub min_cycles: u32,
+    pub max_cycles: u32,
+    pub mean_cycles: f64,
+    pub std_dev: f64,
+    pub percentile_95: u32,
+    pub percentile_99: u32,
+}
+
+impl BenchmarkStats {
+    pub fn from_measurements(measurements: &[u32]) -> Self {
+        let mut sorted = measurements.to_vec();
+        sorted.sort_unstable();
+
+        let mean = measurements.iter().sum::<u32>() as f64
+                  / measurements.len() as f64;
+
+        let variance = measurements.iter()
+            .map(|&x| (x as f64 - mean).powi(2))
+            .sum::<f64>() / measurements.len() as f64;
+
+        Self {
+            samples: measurements.to_vec(),
+            min_cycles: sorted[0],
+            max_cycles: sorted[sorted.len() - 1],
+            mean_cycles: mean,
+            std_dev: variance.sqrt(),
+            percentile_95: sorted[sorted.len() * 95 / 100],
+            percentile_99: sorted[sorted.len() * 99 / 100],
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Data Collection and Analysis}
+
+Performance data collection follows rigorous methodology to ensure statistical validity:
+
+\textbf{Sample Size}: Each benchmark collects minimum 100 samples to ensure statistical significance, with larger sample sizes (1000+) for operations with high variance.
+
+\textbf{Warm-up Procedures}: All benchmarks include warm-up phases to stabilize processor caches and pipeline state before measurement collection begins.
+
+\textbf{Outlier Detection}: Statistical analysis includes outlier detection and filtering to identify measurement artifacts that could skew results.
+
+\textbf{Real-time Logging}: Performance data is collected using Real-Time Transfer (RTT) for external analysis, enabling detailed offline analysis without impacting real-time measurement accuracy.
+
+This comprehensive system design provides the foundation for accurate MPU performance analysis in automotive ECU environments, combining representative hardware with optimized software implementation and precise measurement capabilities.

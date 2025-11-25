@@ -1,0 +1,164 @@
+% -*- mode : latex; coding: utf-8 -*-
+% Made by Jaewon Chung. Find me at: https://jaewonchung.me/about.html
+
+\documentclass[11pt,a4paper,oneside,openany,reqno,chapter,nokorean]{oblivoir}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the format %%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[utf8]{inputenc}
+\usepackage{fapapersize}
+\usefapapersize{*,*,25mm,25mm,30mm,15mm}
+
+\chapterstyle{default}
+\usepackage{tocloft}
+\def\cftchapteraftersnum{.}
+\renewcommand{\cftchapterdotsep}{\cftdotsep}% Chapters should use dots in ToC
+
+\let\interHchar\undefined
+\let\interhword\undefined
+\usepackage[default]{dhucs-interword}
+\usepackage{dhucs-gremph}
+\usepackage{dhucs-enumerate}
+\usepackage{url}
+\usepackage{rotating}
+
+\usepackage{amsmath,amsthm,amssymb,amsxtra}
+\usepackage{graphicx}
+\newsubfloat{figure}
+\usepackage{epsfig}
+\let\footruleskip\undefined
+\usepackage{fancyhdr}
+\usepackage{environ}
+\usepackage{siunitx}
+\usepackage{caption}
+
+\usepackage{wrapfig,lipsum,booktabs}
+\usepackage{setspace-custom}
+\doublespacing
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the content %%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[ruled,linesnumbered]{algorithm2e}
+\usepackage{subcaption} % put captions in subplots
+\usepackage{booktabs}   % make beautiful tables
+\usepackage{multirow}   % multirow command for booktabs
+\usepackage{tikz}       % draw figures with LaTeX
+\usepackage{pgfplots}   % draw plots with LaTeX
+\pgfplotsset{compat=1.14}
+\usepgfplotslibrary{fillbetween}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% SNUECE Bachebor Thesis %%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{SNUECE-BachelorThesis}  
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Configurations %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\setlength\parindent{2pc} % set paragraph indent size
+\setlength\unitlength{1mm} % set unit-length in the Picture environment
+
+\numberwithin{equation}{chapter} % number equations separately for each chapter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+  
+  % Fill out information about this paper here.
+  \EnglishTitle{Optimiziation for Rowhammer Mitigation\\utilizing Internal DRAM Topologies}
+  \KoreanTitle{DRAM 내부 정보를 활용한 Rowhammer\\방어 전략 최적화 제안}
+  
+  \AuthorKoreanName{이준기}
+  \AuthorEnglishName{Jungi Lee}
+  \AuthorHanjaName{이준기}
+  
+  \KoreanTypeofDegree{공학 학사}
+  \EnglishTypeofDegree{Bachelor of Engineering}
+  
+  \EnglishTypeofPaper{Bachelor Thesis}
+  \HanjaTypeofPaper{工學 學士 學位論文}
+
+  % When you graduate. The month should be either February or August.
+  % YEAR + MONTH
+  \KoreanGraduateDate{$2023$년 $2$월}
+  \EnglishGraduateDate{February $2023$}
+  
+  % When your advisor signed your thesis.
+  % YEAR + MONTH + DAY
+  \KoreanSignedDate{$2022$년 $12$월 $22$일}
+  \EnglishSignedDate{December $22$th, $2022$}
+  
+  \EnglishSchoolName{Seoul National University School of Engineering}
+  \KoreanSchoolName{서울대학교 공과 대학}
+  
+  \EnglishDepartmentName{Department of Electrical and Computer Engineering}
+  \HanjaDepartmentName{電氣$\cdot$情報工學部}
+  \KoreanDepartmentName{전기$\cdot$정보공학부}
+  
+  \AdvisorKoreanName{심재웅}
+  \AdvisorEnglishName{Jaewoong Sim}
+  \KoreanKeyWords{DRAM, DDR4, 메모리 신뢰성, RowHammer 공격, Graphene, Hydra}
+  \EnglishKeyWords{DRAM, DDR4, Reliability, RowHammer, Graphene, Hydra}
+
+  % Document generation begins here.
+  % Front cover
+  \makefrontcover
+  
+  % Proposal
+  \makeproposal
+ 
+  % English abstract
+  \pagenumbering{gobble}
+  \include{abs-english}
+  \cedp
+  
+  %% Declare pages before the content body.
+  \frontmatter
+  
+  \pagestyle{plain}
+	%% Table of Contents
+	\clearpage
+	\phantomsection 
+    \tableofcontents*
+    
+	%% List of Figures
+	\clearpage
+	\phantomsection
+    \listoffigures*
+    
+	%% List of Tables
+	\clearpage
+	\phantomsection
+	\listoftables*
+  
+  % Content body begins.
+  \mainmatter
+  \linespread{2}
+
+  % Page numbers appear at the middle-low region of each page.
+  \pagestyle{fancy}
+  \lhead{\leftmark}
+  \rhead{}
+  \chead{}
+  \cfoot{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+  
+  % Chapters
+  \include{chapter1}
+  \cedp
+  \include{chapter2}
+  \cedp
+  \include{chapter3}
+  \cedp
+  \include{chapter4}
+  \cedp
+  \include{chapter5}
+  \cedp
+  \include{chapter6}
+  \cedp
+
+  \pagestyle{plain}
+    % Reference
+    \clearpage
+    \include{reference}
+    \cedp
+ 
+  % Korean abstract
+  \include{abs-korean}	
+  \cedp
+
+\end{document}

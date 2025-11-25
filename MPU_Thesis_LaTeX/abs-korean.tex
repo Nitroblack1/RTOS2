@@ -1,0 +1,15 @@
+% -*- mode : latex; coding: utf-8 -*-
+\markboth{Abstract}{}
+\begin{KoreanAbstract}
+
+This research presents a comprehensive study of Memory Protection Unit (MPU) performance analysis in ARM Cortex-M4 STM32F446 microcontrollers for automotive Electronic Control Unit (ECU) applications. As automotive systems increasingly require hardware-level security for functional safety compliance, understanding MPU performance implications becomes critical for real-time system designers.
+
+This research employs cycle-accurate measurement methodologies using the Data Watchpoint and Trace (DWT) unit to characterize MPU overhead in context switching, inter-process communication, and memory access operations. A custom Rust-based RTOS implementation provides the evaluation platform, representing modern memory-safe approaches to automotive software development.
+
+Key findings demonstrate that MPU protection introduces an average 25\% overhead for context switching (70 cycles at 180MHz), 32\% overhead for IPC operations, and variable memory access penalties ranging from 20-35\% depending on access patterns. However, systematic optimization techniques including lazy reconfiguration, region caching, and batch operations reduce combined overhead to 8-10\%, making hardware protection practically feasible for automotive applications.
+
+This research validates MPU compatibility with real-time constraints across automotive ECU categories, from engine control (1ms response requirements) to body electronics (50ms requirements). Performance overhead remains within acceptable bounds for safety-critical applications, supporting ISO 26262 functional safety requirements while maintaining deterministic real-time behavior.
+
+Results demonstrate that MPU protection usage can maintain real-time performance while providing essential memory isolation required for automotive safety standards. The implemented optimization strategies enable automotive ECU designers to achieve both high safety integrity (ASIL C/D) and real-time performance requirements simultaneously.
+
+\end{KoreanAbstract}

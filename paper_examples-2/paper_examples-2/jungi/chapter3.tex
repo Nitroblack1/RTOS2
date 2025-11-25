@@ -1,0 +1,93 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{Optimization Design} \label{sec:Optimization}
+The underlying source of inefficiency in current state-of-the-art RH mitigation schemes is that MC doesn't know
+the mapping between physical to logical rows. Due to rapid technology scaling in DRAM foundry, current DRAM devices
+may have faulty cells due to manufacturing imperfection. DRAM vendors correct such errors by replacing rows containing 
+faulty cells with fault-free rows. This approach is often called row sparing and has been widely adopted by vendors. 
+Each DRAM bank has spare rows, and when faulty cells are found at the test phase after the manufacturing process, test program \textit{remaps} 
+faulty row's address to fault-free spare row and saves remapping information into programmable memory (remapping table). At run-time, 
+the global row decoder consults the remapping table and finds the corresponding row. Also, the majority of DRAM devices use a simple hash 
+function between logical row address (sent by MC) and physical row address (actual row layout) and this hash function 
+differ between vendors and even products within the same vendor. 
+All the above schemes complicate MC to find out actual adjacent rows of aggressor row, making the RH mitigation scheme inefficient. 
+In this paper, I redesigned the state-of-the-art mitigation systems assuming MC knows the mapping between physical to logical rows.
+
+\section{Graphene}
+\subsection{Algorithm $\And$ Modification}
+\label{sec:Graphene Modification}
+As explained in \ref{sec:Existing Solutions} Graphene uses CAM counter (per bank) to track activation count for 
+row adresses during the last \textbf{W} ACTs. When the counter reaches \textbf{T}, Graphene control logic signals mitigator to send NRR
+for aggressor row. In order to implement the above scheme, the CAM counter must track $N_{entry}$ entries that follows inequality 
+\ref{eqn:Graphene_entrynum} \cite{Graphene}:
+\begin{equation}
+\mathrm{N_{entry} >\frac{W}{T} - 1} \\
+\label{eqn:Graphene_entrynum} 
+\end{equation}
+There are two things to consider when setting T at Graphene. First, Graphene refreshes its CAM counter (counter refresh) at every tREFW. 
+This counter refresh is asynchronous to individual rows, so a maximum  $2(T-1)$ number of ACTs can go through Graphene without invoking 
+mitigation logic (T-1 ACTs between row refresh and counter refresh, another T-1 ACTs between counter refresh and next row refresh). 
+Also, since every ACTs is considered as part of a double-hammering attack pattern, Graphene must use a threshold of $Flip_{th}/2$. 
+Considering both points in the above discussion, we get the following inequality \ref{eqn:Graphene_T}.
+\begin{equation}
+\mathrm{2(T-1) <\frac{Flip_{th}}{2} \implies T<\frac{Flip_{th}}{4}+1} \\
+\label{eqn:Graphene_T} 
+\end{equation}
+If MC is extended to know logical to physical row mapping, we can track victim rows instead of aggressor rows. 
+The optimized version of Graphene (\textit{Graphene-op}) uses the same algorithm, but instead of focusing on the aggressor, it determines
+the victims of ACT command, updates counter, and sends \textit{refresh} command instead of NRR. We don't have to consider every ACTs 
+as part of the double-hammering pattern, instead of using a halved threshold. However, since we always have to count two victims 
+for a single ACT, the window size is doubled. So we get inequality \ref{eqn:Graphene-op} for Graphene-op.
+
+\begin{equation}
+\label{eqn:Graphene-op} 
+\begin{gathered}
+\mathrm{2(T-1) <Flip_{th} \implies T<\frac{Flip_{th}}{2}+1} \\
+\mathrm{N_{entry} >\frac{2W}{T} - 1} \\
+\end{gathered}
+\end{equation}
+Note that although the number of tracking elements is doubled, T is also doubled, making Graphene-op's CAM counter entry ($N_{entry}$) 
+the same as Graphene. In addition, a Half-double attack is impossible in Graphene-op since it doesn't use NRR command. 
+In conclusion, Graphene-op uses a threshold twice the size of Graphene without incurring almost no storage overhead and 
+effectively blocks Half-double attacks. 
+
+\subsection{Security Analysis of Modified Algorithm}
+Here I show that Graphene-op successfully mitigates RH by following the same flow as Graphene. 
+I start by proving the following theorem:
+
+\noindent\textbf{Theorem.} \textit{Tracking victim rows of last W aggressive ACTs in size of $N_{entry}$ table and refreshing entry whenever 
+it becomes multiple of T prevents any row's actual count from reaching T without incurring refresh} 
+\footnote{actual count for a given row refers to the number of ACTs sent to any adjacent aggressor rows between refresh command}  
+
+\noindent\textbf{Lemma 1.} The (estimated) count of every entry in the table is equal to or greater than the actual count of any victim row.
+
+\noindent\textbf{Lemma 2.} Spillover count cannot exceed $\frac{2W}{N_{entry}+1}$
+
+\noindent\textbf{Proof of Lemma 1.}
+By algorithm introduced in section \ref{sec:Existing Solutions} and modification in section \ref{sec:Graphene Modification}, the only way
+an estimated count can become smaller than an actual count is when it is evicted. When it is evicted, its estimated count 
+must be equal to the spillover count. Between eviction and reentering, it will update the spillover counter. 
+When it is written back, it will set its counter to spillover counter+1. $\hfill \square$
+
+\noindent\textbf{Proof of Lemma 2.}
+Since every arrived ACTs increments the sum of the spillover counter and counters in the table by 2, 
+the sum of the spillover counter and counters in the table has a maximum of $2W$. Since the spillover counter should be smaller or equal
+to a minimum value in the counters in the table, it will have a maximum value when all entries in the table have the same value as 
+the spillover counter: $\frac{2W}{N_{entry}+1}$ $\hfill \square$
+
+\noindent\textbf{Proof of Theorem.} 
+When the actual count of victim row X turns T-1 to T, row X's estimated count should be T or higher due to Lemma 1. So, refresh action 
+must be performed or already has been performed in the past. By inequality \ref{eqn:Graphene-op} and Lemma 2,
+the spillover counter is always smaller than T and thus the entry is never evicted from that moment. 
+So, when another T number of ACTs affects row X, the estimated counter would have increased by exactly T amount, 
+and refresh action is performed accordingly. $\hfill \square$
+
+\section{Hydra}
+\subsection{Algorithm $\And$ Modification}
+Recent studies \cite{DeeperLook} showed that due to manufacturing factors and design factors in DRAM foundries, 
+$Flip_{th}$ of each row differs greatly. In an optimized version of Hydra (Hydra-op), I encoded the unique $Flip_{th}$ of each row 
+assuming it can be known at the test phase of the DRAM manufacturing process and embedded those metadata along with the row's RCT counter. 
+Since RCT size is less than 1\% of typical DRAM, this method incurs a small storage overhead. 
+There is also little performance degradation, as each row's counter and metadata can be placed in the same cache line. 
+Although tracking victim rows is orthogonal to adding threshold metadata for each row in the DRAM counter, I did not implement it in the 
+current paper due to its obvious speedup. However, current work can easily be extended to incorporate both optimizations. 
+
