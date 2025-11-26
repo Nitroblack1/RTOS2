@@ -10,6 +10,7 @@ use stm32f4 as _; // Required for memory layout and vector table
 
 // Import modular apps (for compilation, but registration is automatic via linker)
 mod apps;
+mod benchmark;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 // ───────────── APP METADATA SYSTEM ─────────────
@@ -72,7 +73,7 @@ static mut APP_REGISTRY: [AppMetadata; MAX_APPS] = [AppMetadata::empty(); MAX_AP
 unsafe fn discover_linker_registered_apps() -> usize {
     // For now, manually register the apps until the linker section scanning is fully implemented
     // This represents what the linker would discover automatically
-    let fib_fn_addr = crate::apps::fibonacci::fibonacci as usize;
+    // let fib_fn_addr = crate::apps::fibonacci::fibonacci as usize;
 
     let discovered_apps = [
         AppMetadata {
@@ -93,33 +94,33 @@ unsafe fn discover_linker_registered_apps() -> usize {
             stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
             stack_ptr_fn: None,
         },
-        AppMetadata {
-            id: 3,
-            name: "network_stack",
-            entry: crate::apps::network_stack::network_stack as usize,
-            entry_fn: Some(crate::apps::network_stack::network_stack),
-            stack_ptr: 0,
-            stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
-            stack_ptr_fn: None,
-        },
-        AppMetadata {
-            id: 4,
-            name: "demo",
-            entry: sched::demo_dynamic_worker as usize,
-            entry_fn: Some(sched::demo_dynamic_worker),
-            stack_ptr: 0,
-            stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
-            stack_ptr_fn: None,
-        },
-        AppMetadata {
-            id: 5,
-            name: "fibonacci",
-            entry: fib_fn_addr,
-            entry_fn: Some(crate::apps::fibonacci::fibonacci),
-            stack_ptr: 0,
-            stack_size: 4096,  // 1024 → 4096 바이트로 대폭 확대 (재귀 가능성)
-            stack_ptr_fn: None,
-        },
+        // AppMetadata {
+        //     id: 3,
+        //     name: "network_stack",
+        //     entry: crate::apps::network_stack::network_stack as usize,
+        //     entry_fn: Some(crate::apps::network_stack::network_stack),
+        //     stack_ptr: 0,
+        //     stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
+        //     stack_ptr_fn: None,
+        // },
+        // AppMetadata {
+        //     id: 4,
+        //     name: "demo",
+        //     entry: sched::demo_dynamic_worker as usize,
+        //     entry_fn: Some(sched::demo_dynamic_worker),
+        //     stack_ptr: 0,
+        //     stack_size: 2048,  // 512 → 2048 바이트로 확대 (스택 오버플로우 방지)
+        //     stack_ptr_fn: None,
+        // },
+        // AppMetadata {
+        //     id: 5,
+        //     name: "fibonacci",
+        //     entry: 0, // fib_fn_addr,
+        //     entry_fn: None, // Some(crate::apps::fibonacci::fibonacci),
+        //     stack_ptr: 0,
+        //     stack_size: 4096,  // 1024 → 4096 바이트로 대폭 확대 (재귀 가능성)
+        //     stack_ptr_fn: None,
+        // },
         // IPC and shared memory test apps
         AppMetadata {
             id: 10,
@@ -139,15 +140,15 @@ unsafe fn discover_linker_registered_apps() -> usize {
             stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
             stack_ptr_fn: None,
         },
-        AppMetadata {
-            id: 12,
-            name: "shared_counter",
-            entry: crate::apps::shared_counter::shared_counter as usize,
-            entry_fn: Some(crate::apps::shared_counter::shared_counter),
-            stack_ptr: 0,
-            stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
-            stack_ptr_fn: None,
-        },
+        // AppMetadata {
+        //     id: 12,
+        //     name: "shared_counter",
+        //     entry: crate::apps::shared_counter::shared_counter as usize,
+        //     entry_fn: Some(crate::apps::shared_counter::shared_counter),
+        //     stack_ptr: 0,
+        //     stack_size: 2048,  // 1024 → 2048 바이트로 증가 (스택 오버플로우 방지)
+        //     stack_ptr_fn: None,
+        // },
         // Phase 2: Memory protection testing - TEMPORARILY DISABLED
         // AppMetadata {
         //     id: 15,
@@ -1044,8 +1045,11 @@ mod mpu {
         };
 
         // Configure app-specific memory region
+        let start_cycles = crate::benchmark::CycleCounter::get_cycles();
         configure_region(region_num, app_base, region_size_encoding(app_size as usize)?,
                         permissions, true)?; // Execute never for app data
+        let end_cycles = crate::benchmark::CycleCounter::get_cycles();
+        crate::benchmark::log_mpu_region_time(end_cycles.wrapping_sub(start_cycles));
 
         rprintln!("[MPU-ISOLATE] Configured app {} memory: region {}, base=0x{:08x}, size={}KB",
                  app_id, region_num, app_base, app_size / 1024);
@@ -1977,10 +1981,10 @@ mod sched {
         rprintln!("[INIT] App '{}': PC=0x{:08x}, SP=0x{:08x}, Stack_base=0x{:08x}",
                  app.name, final_pc, sp, app.stack_ptr);
 
-        // 피보나치 특별 로깅
-        if app.name == "fibonacci" {
-            rprintln!("[FIB_INIT] PC set to: 0x{:08x}", hw_frame[6]);
-        }
+        // // 피보나치 특별 로깅
+        // if app.name == "fibonacci" {
+        //     rprintln!("[FIB_INIT] PC set to: 0x{:08x}", hw_frame[6]);
+        // }
 
         // Initialize TCB with software context and app metadata
         tcb.sp = sp; // PSP points to hardware frame
@@ -2341,6 +2345,12 @@ mod sched {
                         }
                     }
                 } else {
+                    // Measure Non-IPC app context switch time (no MPU overhead)
+                    let start_cycles = crate::benchmark::CycleCounter::get_cycles();
+                    // Non-IPC apps don't need MPU region allocation - just context switch
+                    let end_cycles = crate::benchmark::CycleCounter::get_cycles();
+                    crate::benchmark::log_context_switch_time(end_cycles.wrapping_sub(start_cycles));
+
                     // Show when non-IPC apps are running
                     if DEBUG_COUNTER < 20 {
                         rprintln!("[MPU-DEBUG] Non-IPC app: {} (id={})", app_name, app_id);
@@ -2637,9 +2647,9 @@ mod sched {
                 // 동적 스폰 시 원래 앱의 스택 크기 사용
                 match unsafe { task_spawn(entry_fn, app.name, Some(app.stack_size as usize)) } {
                     Ok(task_id) => {
-                        if app.name == "fibonacci" {
-                            rprintln!("[FIB_SPAWN] OK task_id={}", task_id);
-                        }
+                        // if app.name == "fibonacci" {
+                        //     rprintln!("[FIB_SPAWN] OK task_id={}", task_id);
+                        // }
                         spawned_count += 1;
                     },
                     Err(err) => {
@@ -2859,6 +2869,9 @@ fn main() -> ! {
     }
 
     rprintln!("[MAIN] Initializing OS with dynamic spawning only...");
+
+    // Initialize benchmark system after core OS is ready
+    crate::benchmark::CycleCounter::init();
 
     sched::start();
 }
