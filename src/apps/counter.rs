@@ -4,7 +4,7 @@ use crate::app_syscalls::*;
 use app_macros::app;
 use rtt_target::rprintln;
 
-#[app(id = 2, stack_size = 384, name = "counter")]
+#[app(id = 1, stack_size = 1024, name = "counter")]
 pub unsafe extern "C" fn counter() -> ! {
     // rprintln!("[APP counter] started"); // DISABLED for benchmark focus
     let mut count = 0u32;

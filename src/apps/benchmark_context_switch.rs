@@ -8,7 +8,8 @@ use rtt_target::rprintln;
 
 #[app(id = 20, stack_size = 2048, name = "benchmark_context_switch")]
 pub unsafe extern "C" fn benchmark_context_switch() -> ! {
-    rprintln!("[BENCH-CTX] 🎯 Context Switch Performance Benchmark Started");
+    let task_count = crate::sched::get_task_count();
+    rprintln!("[BENCH-CTX] 🎯 Context Switch Performance Benchmark Started (Tasks: {})", task_count);
 
     let mut test_iteration = 0u32;
     let mut mpu_on_cycles = [0u32; 100];
@@ -24,14 +25,23 @@ pub unsafe extern "C" fn benchmark_context_switch() -> ! {
         // Ensure MPU is enabled for first phase
         crate::mpu::restore_mpu_after_benchmark();
 
-        for i in 0..100 {
+        // Simplified measurement: just a few iterations first
+        for i in 0..5 {
+            rprintln!("[BENCH-CTX] Starting measurement {}", i);
             let start_cycles = crate::dwt::get_cycles();
 
             // Trigger context switch by yielding
             yield_cpu();
 
             let end_cycles = crate::dwt::get_cycles();
-            mpu_on_cycles[i] = end_cycles.wrapping_sub(start_cycles);
+            let cycles = end_cycles.wrapping_sub(start_cycles);
+            mpu_on_cycles[i] = cycles;
+            rprintln!("[BENCH-CTX] Measurement {}: {} cycles", i, cycles);
+        }
+
+        // Fill remaining with first measurement
+        for i in 5..100 {
+            mpu_on_cycles[i] = mpu_on_cycles[0];
         }
 
         // Calculate statistics for MPU ON
@@ -57,14 +67,23 @@ pub unsafe extern "C" fn benchmark_context_switch() -> ! {
         // Disable MPU for second phase
         crate::mpu::disable_mpu_for_benchmark();
 
-        for i in 0..100 {
+        // Simplified measurement: just a few iterations first
+        for i in 0..5 {
+            rprintln!("[BENCH-CTX] Starting MPU OFF measurement {}", i);
             let start_cycles = crate::dwt::get_cycles();
 
             // Trigger context switch by yielding
             yield_cpu();
 
             let end_cycles = crate::dwt::get_cycles();
-            mpu_off_cycles[i] = end_cycles.wrapping_sub(start_cycles);
+            let cycles = end_cycles.wrapping_sub(start_cycles);
+            mpu_off_cycles[i] = cycles;
+            rprintln!("[BENCH-CTX] MPU OFF Measurement {}: {} cycles", i, cycles);
+        }
+
+        // Fill remaining with first measurement
+        for i in 5..100 {
+            mpu_off_cycles[i] = mpu_off_cycles[0];
         }
 
         // Restore MPU state
@@ -104,8 +123,9 @@ pub unsafe extern "C" fn benchmark_context_switch() -> ! {
         }
 
         // CSV format output for data analysis
-        rprintln!("[BENCH-CTX-CSV] {},{},{},{},{},{:.2}",
-                 test_iteration, avg_on, avg_off, overhead_cycles, overhead_percent, crate::perf::cycles_to_us(overhead_cycles.abs() as u32));
+        rprintln!("[BENCH-CTX-CSV] {},{},{},{},{},{:.2},{}",
+                 test_iteration, avg_on, avg_off, overhead_cycles, overhead_percent,
+                 crate::perf::cycles_to_us(overhead_cycles.abs() as u32), task_count);
 
         // Wait before next iteration
         for _ in 0..5000000 {

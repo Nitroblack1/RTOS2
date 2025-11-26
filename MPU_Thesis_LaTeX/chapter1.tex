@@ -2,66 +2,27 @@
 \chapter{Introduction}
 \label{sec:introduction}
 
-Modern automotive systems are experiencing a fundamental transformation toward software-defined vehicles, where Electronic Control Units (ECUs) assume increasingly critical roles in vehicle operation, safety, and user experience. Contemporary vehicles integrate dozens of ECUs that control functions ranging from engine management to autonomous driving capabilities. As these systems grow in complexity, ensuring their reliability, security, and real-time performance becomes paramount for automotive safety and functionality.
+ARM Cortex-M4 microcontrollers have gained widespread adoption in automotive ECU applications due to their balance of performance and power efficiency. The STM32F446 operates at 180MHz with integrated Memory Protection Unit (MPU) capabilities essential for meeting ISO 26262 functional safety standards.
 
-ARM Cortex-M4 microcontrollers, particularly the STM32F446 series, have gained widespread adoption in automotive ECU applications due to their optimal balance of performance, power efficiency, and cost-effectiveness. The STM32F446 operates at 180MHz, delivering 225 DMIPS performance while maintaining low power consumption suitable for automotive environments. These characteristics make it an ideal platform for implementing safety-critical automotive functions that require both computational capability and energy efficiency.
-
-One distinguishing feature of Cortex-M4 processors for safety-critical applications is the optional Memory Protection Unit (MPU). The MPU provides hardware-enforced memory access control, enabling implementation of memory isolation between different software components. This capability is essential for meeting automotive functional safety standards such as ISO 26262, which mandates robust fault detection and containment mechanisms to prevent catastrophic system failures.
-
-However, introducing memory protection comes with performance implications that must be carefully considered. Every memory access requires validation against MPU configurations, and context switches between protected domains necessitate additional overhead for reconfiguring memory regions. Understanding these performance characteristics is crucial for automotive system designers who must balance safety requirements with stringent real-time constraints.
-
-Real-Time Operating Systems (RTOS) in automotive applications must guarantee deterministic behavior with strict timing requirements. Engine control systems require sub-millisecond response times for critical operations, while Anti-lock Braking Systems (ABS) and Electronic Stability Control (ESC) have even tighter constraints. The performance overhead introduced by MPU protection could potentially violate these timing requirements if not properly characterized and optimized, making this research essential for automotive safety.
-
-\section{Research Motivation}
-
-The automotive industry's shift toward higher levels of automation and connectivity has dramatically increased the security and safety requirements for ECU systems. Traditional automotive software architectures, which relied primarily on software-based isolation mechanisms, are insufficient for meeting modern security threats and functional safety standards. Hardware-based memory protection through MPU implementation offers a robust solution, but its performance impact on real-time automotive applications remains poorly understood.
-
-Current literature lacks comprehensive performance analysis of MPU-enabled systems specifically tailored for automotive ECU environments. While general-purpose embedded system studies exist, automotive applications have unique characteristics including strict real-time constraints, specific workload patterns, and safety-critical requirements that demand specialized analysis. This research gap motivates the need for detailed performance characterization of MPU overhead in automotive contexts.
-
-Furthermore, the emergence of memory-safe programming languages like Rust in automotive development presents an opportunity to complement hardware-based protection with compile-time safety guarantees. Understanding how these technologies interact and their combined impact on system performance is essential for developing next-generation automotive software architectures.
+The MPU provides hardware-enforced memory access control, enabling isolation between software components. However, introducing memory protection creates performance implications that must be characterized for real-time automotive applications where engine control systems require sub-millisecond response times.
 
 \section{Research Objectives}
 
-This thesis aims to provide comprehensive performance analysis of MPU-enabled systems in automotive ECU environments. The primary research objectives include:
+This thesis provides performance analysis of MPU-enabled systems in automotive ECU environments with the following objectives:
 
 \begin{enumerate}
-    \item \textbf{Quantitative Performance Characterization}: Measure and analyze precise performance overhead introduced by MPU protection across various system operations including context switching, inter-process communication, and memory access patterns using cycle-accurate measurement techniques.
-
-    \item \textbf{Real-time Constraint Validation}: Evaluate whether MPU-protected systems can meet typical automotive ECU timing requirements across different application categories and identify potential performance bottlenecks that could impact safety-critical operations.
-
-    \item \textbf{Optimization Strategy Development}: Develop and validate techniques for minimizing MPU overhead while maintaining security and safety guarantees, focusing on practical solutions applicable to production automotive systems.
-
-    \item \textbf{Implementation Guidelines}: Provide actionable recommendations for automotive ECU designers implementing MPU-based memory protection, including configuration strategies and performance optimization techniques.
+    \item \textbf{Performance Characterization}: Measure precise MPU overhead using cycle-accurate techniques
+    \item \textbf{Real-time Validation}: Evaluate compatibility with automotive timing requirements
+    \item \textbf{Optimization Strategies}: Develop techniques for minimizing MPU overhead
+    \item \textbf{Implementation Guidelines}: Provide recommendations for production systems
 \end{enumerate}
 
-The research focuses specifically on the STM32F446 microcontroller running a custom Rust-based RTOS, representing a modern approach to automotive software development that emphasizes both memory safety and performance optimization.
+\section{Contributions}
 
-\section{Research Contributions}
-
-This work makes several significant contributions to the field of automotive embedded systems and real-time system design:
-
+This work contributes:
 \begin{itemize}
-    \item \textbf{Comprehensive MPU Performance Analysis}: First detailed study of MPU overhead specifically for automotive ECU applications, providing cycle-accurate measurements across multiple system operations and configurations.
-
-    \item \textbf{Optimization Techniques}: Development and validation of systematic optimization strategies that reduce MPU overhead by up to 65\% while maintaining security properties, making hardware protection practically feasible for automotive applications.
-
-    \item \textbf{Real-time Constraint Validation}: Demonstration that MPU-protected systems can meet automotive timing requirements across various ECU categories, supporting the adoption of hardware-based security in safety-critical automotive applications.
-
-    \item \textbf{Implementation Reference}: Production-ready Rust RTOS implementation with MPU support, serving as a reference for automotive developers seeking to implement hardware-based memory protection in their systems.
+    \item First detailed MPU overhead study for automotive ECU applications
+    \item Cycle-accurate measurements showing 1.25\% context switch overhead
+    \item Validation of real-time constraint compatibility across ECU categories
+    \item Production-ready Rust RTOS implementation with MPU support
 \end{itemize}
-
-\section{Thesis Organization}
-
-This thesis is organized into six chapters that systematically address the research objectives and present comprehensive analysis of MPU performance in automotive ECU environments.
-
-Chapter \ref{sec:backgrounds} provides essential background information on ARM Cortex-M4 architecture, MPU functionality, automotive RTOS requirements, and existing approaches to embedded system performance analysis. This foundation enables understanding of the technical challenges and opportunities in automotive ECU design.
-
-Chapter \ref{sec:system-design} describes the system design and implementation details of the evaluation platform, including the STM32F446 hardware configuration, Rust-based RTOS architecture, MPU configuration strategies, and performance measurement infrastructure used throughout the research.
-
-Chapter \ref{sec:experimental-methodology} outlines the experimental methodology and benchmark design, covering the comprehensive test scenarios developed to characterize MPU performance across context switching, inter-process communication, and memory access operations representative of automotive workloads.
-
-Chapter \ref{sec:results} presents detailed results and analysis of performance measurements, including quantitative characterization of MPU overhead, statistical analysis of timing variations, and validation of real-time constraint compatibility across different automotive ECU categories.
-
-Chapter \ref{sec:optimization} discusses optimization strategies and trade-offs between security and performance, providing practical techniques for minimizing MPU overhead while maintaining safety guarantees required for automotive applications.
-
-Finally, Chapter \ref{sec:conclusion} concludes with a summary of contributions, discussion of limitations, and suggestions for future research directions that could extend this work to broader automotive system contexts and emerging technologies.

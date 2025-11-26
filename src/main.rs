@@ -228,35 +228,14 @@ unsafe fn discover_linker_registered_apps() -> usize {
     // let _fib_fn_addr = crate::apps::fibonacci::fibonacci as usize; // Disabled for benchmark
 
     let discovered_apps = [
-        // Only benchmark apps active for memory optimization
-        /*  // Counter app temporarily disabled
-        AppMetadata {
-            id: 1,
-            name: "counter",
-            entry: crate::apps::counter::counter as usize,
-            entry_fn: Some(crate::apps::counter::counter),
-            stack_ptr: 0,
-            stack_size: 1024,
-            stack_ptr_fn: None,
-        },
-        */
-        /*  // TEMPORARILY DISABLED for memory optimization
-        AppMetadata {
-            id: 2,
-            name: "timer",
-            entry: crate::apps::timer::timer as usize,
-            entry_fn: Some(crate::apps::timer::timer),
-            stack_ptr: 0,
-            stack_size: 1024,  // Reduced for memory optimization
-            stack_ptr_fn: None,
-        },
+        // 5 working apps for MPU overhead benchmarking
         AppMetadata {
             id: 3,
             name: "network_stack",
             entry: crate::apps::network_stack::network_stack as usize,
             entry_fn: Some(crate::apps::network_stack::network_stack),
             stack_ptr: 0,
-            stack_size: 1024,  // Reduced for memory optimization
+            stack_size: 1024,
             stack_ptr_fn: None,
         },
         AppMetadata {
@@ -265,19 +244,36 @@ unsafe fn discover_linker_registered_apps() -> usize {
             entry: sched::demo_dynamic_worker as usize,
             entry_fn: Some(sched::demo_dynamic_worker),
             stack_ptr: 0,
-            stack_size: 1024,  // Reduced for memory optimization
+            stack_size: 1024,
             stack_ptr_fn: None,
         },
         AppMetadata {
             id: 5,
-            name: "fibonacci",
-            entry: fib_fn_addr,
-            entry_fn: Some(crate::apps::fibonacci::fibonacci),
+            name: "demo2",
+            entry: sched::demo_dynamic_worker as usize,
+            entry_fn: Some(sched::demo_dynamic_worker),
             stack_ptr: 0,
-            stack_size: 2048,  // Reduced from 4096 for memory optimization
+            stack_size: 1024,
             stack_ptr_fn: None,
         },
-        */
+        AppMetadata {
+            id: 6,
+            name: "demo3",
+            entry: sched::demo_dynamic_worker as usize,
+            entry_fn: Some(sched::demo_dynamic_worker),
+            stack_ptr: 0,
+            stack_size: 1024,
+            stack_ptr_fn: None,
+        },
+        AppMetadata {
+            id: 20,
+            name: "benchmark_context_switch",
+            entry: crate::apps::benchmark_context_switch::benchmark_context_switch as usize,
+            entry_fn: Some(crate::apps::benchmark_context_switch::benchmark_context_switch),
+            stack_ptr: 0,
+            stack_size: 4096,
+            stack_ptr_fn: None,
+        },
         /* // IPC and shared memory test apps - TEMPORARILY DISABLED
         AppMetadata {
             id: 10,
@@ -318,7 +314,8 @@ unsafe fn discover_linker_registered_apps() -> usize {
         //     stack_ptr_fn: None,
         // },
         // Only one benchmark app for minimum memory usage
-        AppMetadata {
+        // TEMPORARILY DISABLED: benchmark app may cause context switching issues
+        /* AppMetadata {
             id: 20,
             name: "benchmark_context_switch",
             entry: crate::apps::benchmark_context_switch::benchmark_context_switch as usize,
@@ -326,7 +323,7 @@ unsafe fn discover_linker_registered_apps() -> usize {
             stack_ptr: 0,
             stack_size: 4096,  // Increased to prevent stack overflow
             stack_ptr_fn: None,
-        },
+        }, */
         /*  // IPC benchmark temporarily disabled
         AppMetadata {
             id: 21,
@@ -345,6 +342,9 @@ unsafe fn discover_linker_registered_apps() -> usize {
         APP_REGISTRY[i] = *app;
         rprintln!("[REGISTRY] Discovered app {} (id={}, stack={})",
                  app.name, app.id, app.stack_size);
+
+        // DEBUG: Verify APP_REGISTRY copy
+        rprintln!("[REGISTRY-DEBUG] APP_REGISTRY[{}].id = {}", i, APP_REGISTRY[i].id);
     }
 
     rprintln!("[REGISTRY] Discovery completed: {} apps found", app_count);
@@ -496,7 +496,9 @@ unsafe fn MemoryManagement() -> ! {
             "UNKNOWN"
         };
         let app_id = if current_task_id < sched::N_TASKS {
-            sched::TCBS[current_task_id].app_id
+            let tcb_app_id = sched::TCBS[current_task_id].app_id;
+            rprintln!("[MPU-DEBUG] Reading TCB[{}].app_id = {}", current_task_id, tcb_app_id);
+            tcb_app_id
         } else {
             0
         };
@@ -1216,11 +1218,16 @@ mod mpu {
         // MemViolator (runtime id=8):   0x20013000 - 0x20013400 (1KB) → MPU region 3 - RESTRICTED!
 
         let (app_base, app_size, region_num, permissions) = match app_id {
-            5 => (0x2001_0000, 4 * 1024, 2, MPU_AP_PRIV_RW_USER_RW), // Producer - full access
-            6 => (0x2001_1000, 4 * 1024, 3, MPU_AP_PRIV_RW_USER_RW), // Consumer - full access
-            7 => (0x2001_2000, 4 * 1024, 4, MPU_AP_PRIV_RW_USER_RW), // Shared counter - full access
-            8 => (0x2001_3000, 1 * 1024, 5, MPU_AP_PRIV_RW_USER_RW), // Memory violator - RESTRICTED to 1KB only
-            _ => return Err("Invalid app region ID - only IPC apps (5-8) supported"),
+            1 => (0x2001_0000, 4 * 1024, 2, MPU_AP_PRIV_RW_USER_RW), // counter - full access
+            2 => (0x2001_1000, 4 * 1024, 3, MPU_AP_PRIV_RW_USER_RW), // timer - full access
+            3 => (0x2001_2000, 4 * 1024, 4, MPU_AP_PRIV_RW_USER_RW), // network_stack - full access
+            4 => (0x2001_3000, 4 * 1024, 5, MPU_AP_PRIV_RW_USER_RW), // demo - full access
+            5 => (0x2001_4000, 4 * 1024, 6, MPU_AP_PRIV_RW_USER_RW), // Producer - full access
+            6 => (0x2001_5000, 4 * 1024, 7, MPU_AP_PRIV_RW_USER_RW), // Consumer - full access
+            7 => (0x2001_6000, 4 * 1024, 2, MPU_AP_PRIV_RW_USER_RW), // Shared counter - full access
+            8 => (0x2001_7000, 1 * 1024, 3, MPU_AP_PRIV_RW_USER_RW), // Memory violator - RESTRICTED to 1KB only
+            20 => (0x2001_8000, 8 * 1024, 4, MPU_AP_PRIV_RW_USER_RW), // benchmark_context_switch - larger stack
+            _ => return Err("Invalid app region ID"),
         };
 
         // Configure app-specific memory region
@@ -2167,6 +2174,13 @@ mod sched {
         let pc_value = app.entry as u32;
         let base_pc = pc_value & !1; // Thumb bit 제거하여 검증
 
+        // DEBUG: Verify PC value for counter app
+        if app.name == "counter" {
+            rprintln!("[PC-DEBUG] Counter app entry: 0x{:08x}, base_pc: 0x{:08x}", app.entry, base_pc);
+            let actual_counter_fn = crate::apps::counter::counter as usize;
+            rprintln!("[PC-DEBUG] Actual counter function: 0x{:08x}", actual_counter_fn);
+        }
+
         // Flash 주소 범위 엄격 검증
         if base_pc == 0 {
             rprintln!("[FATAL] Null PC for app '{}': entry=0x{:08x}", app.name, app.entry);
@@ -2216,8 +2230,21 @@ mod sched {
         tcb.r11 = 0xBBBBBBBB; // r11
         tcb.control = 0x02; // CONTROL: Use PSP for thread mode (temporarily privileged for debugging)
         tcb.state = TaskState::Ready;
-        tcb.app_id = app.id;
+        // Fix app.id mapping issue: use correct app ID based on name
+        tcb.app_id = match app.name {
+            "counter" => 1,
+            "timer" => 2,
+            "network_stack" => 3,
+            "demo" => 4,
+            "demo2" => 5,
+            "demo3" => 6,
+            "benchmark_context_switch" => 20,
+            _ => app.id, // fallback
+        };
         tcb.name = app.name;
+
+        // DEBUG: Verify TCB app_id assignment
+        rprintln!("[TCB-DEBUG] app.id={}, setting TCB app_id={} for app '{}'", app.id, tcb.app_id, app.name);
         tcb.stack_base = stack.as_mut_ptr();
         tcb.stack_size = stack_bytes as u32;
 
@@ -2377,6 +2404,9 @@ mod sched {
                 if idx % 5 == 0 {
                     rprintln!("[INIT] App {}", idx);
                 }
+
+                // DEBUG: Check app.id before TCB init
+                rprintln!("[INIT-DEBUG] idx={}, app.id={}, app.name='{}'", idx, app.id, app.name);
 
                 let stack_slice = acquire_app_stack(app);
                 TCBS[idx] = Tcb::default();
@@ -2546,10 +2576,11 @@ mod sched {
 
                 // Map specific apps to MPU regions based on actual runtime app_id values
                 let mpu_region = match app_id {
-                    5 => Some(0), // Producer (actual runtime id=5) -> MPU region 0
-                    6 => Some(1), // Consumer (actual runtime id=6) -> MPU region 1
-                    7 => Some(2), // Shared Counter (actual runtime id=7) -> MPU region 2
-                    8 => Some(3), // Memory Violator (actual runtime id=8) -> MPU region 3 (RESTRICTED)
+                    3 => Some(0), // network_stack -> MPU region 0
+                    4 => Some(1), // demo -> MPU region 1
+                    5 => Some(2), // demo2 -> MPU region 2
+                    6 => Some(3), // demo3 -> MPU region 3
+                    20 => Some(4), // benchmark_context_switch -> MPU region 4
                     _ => None,    // Other apps don't get isolated memory
                 };
 

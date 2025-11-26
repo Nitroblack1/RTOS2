@@ -2,266 +2,40 @@
 \chapter{Experimental Setup and Methodology}
 \label{sec:experimental-methodology}
 
-This chapter describes the comprehensive experimental methodology designed to characterize MPU performance impact in automotive ECU environments. The experimental setup includes benchmark design, measurement procedures, and statistical analysis techniques that ensure reliable and representative performance data.
+\section{Benchmark Design}
 
-\section{Benchmark Design Principles}
-
-The experimental evaluation employs three primary benchmark categories designed to capture MPU performance impact across typical automotive ECU operations. Each benchmark isolates specific performance characteristics while maintaining relevance to real automotive workloads.
-
-\subsection{Design Objectives}
-
-The benchmark design follows several key principles essential for automotive ECU performance analysis:
-
-\textbf{Isolation of MPU Effects}: Benchmarks are designed to isolate MPU overhead from other system factors, enabling precise measurement of protection-related performance impact.
-
-\textbf{Automotive Relevance}: Test scenarios reflect realistic automotive ECU workloads including periodic control tasks, inter-task communication, and memory access patterns typical in automotive applications.
-
-\textbf{Statistical Rigor}: Each benchmark collects sufficient samples for statistical analysis with appropriate warm-up procedures and outlier detection to ensure measurement validity.
-
-\textbf{Scalability}: Benchmarks evaluate performance across different MPU configuration complexities, from simple 2-region setups to complex 8-region configurations representative of safety-critical automotive systems.
-
-\subsection{Benchmark Categories}
-
-Three primary benchmark categories characterize different aspects of MPU performance impact:
+Three benchmark categories characterize MPU performance impact:
 
 \begin{enumerate}
-    \item \textbf{Context Switch Benchmarks}: Measure task switching overhead with and without MPU protection, including analysis of MPU reconfiguration costs and their impact on real-time scheduling.
-
-    \item \textbf{Inter-Process Communication Benchmarks}: Evaluate IPC mechanisms including message queues and shared memory access under MPU protection, relevant to automotive ECU coordination patterns.
-
-    \item \textbf{Memory Access Pattern Benchmarks}: Analyze memory access performance including sequential and random access patterns, memory allocation operations, and cache behavior with MPU validation.
+    \item \textbf{Context Switch Benchmarks}: Measure task switching overhead with/without MPU protection
+    \item \textbf{Inter-Process Communication}: Evaluate IPC mechanisms under MPU protection
+    \item \textbf{Memory Access Patterns}: Analyze memory performance with MPU validation
 \end{enumerate}
 
-\section{Context Switch Performance Measurement}
+\subsection{Context Switch Measurement}
 
-Context switching represents one of the most critical RTOS operations in automotive ECUs, occurring hundreds to thousands of times per second depending on application requirements. Accurate measurement of context switch overhead is essential for validating real-time performance.
+\textbf{Test Configuration}: Two identical tasks alternate execution with equal priority, isolating switching overhead from application processing.
 
-\subsection{Test Scenario Design}
+\textbf{MPU Variants}: Evaluated configurations from 2-region simple setup to 8-region complex automotive protection.
 
-The context switch benchmark implements a controlled scenario that isolates switching overhead:
+\textbf{Measurement Procedure}: DWT cycle counter captures precise timing across 10 test iterations with 100 samples each for statistical significance.
 
-\textbf{Task Configuration}: Two identical tasks alternate execution through yield operations, implementing round-robin scheduling with equal priority to ensure consistent switching behavior.
+\section{Statistical Methodology}
 
-\textbf{Workload Minimization}: Tasks perform minimal computation to isolate context switching overhead from application-specific processing time.
+\textbf{Sample Collection}: Minimum 100 measurements per configuration with warm-up procedures and outlier detection.
 
-\textbf{MPU Configuration Variants}: The benchmark evaluates multiple MPU configurations to understand scaling behavior:
+\textbf{Analysis}: Mean, standard deviation, confidence intervals, and percentile analysis for real-time constraint validation.
 
-\begin{table}[h]
-\centering
-\caption{Context Switch Benchmark Configurations}
-\label{tab:context-switch-configs}
-\begin{tabular}{@{}lccl@{}}
-\toprule
-Configuration & Regions & Stack Size & Description \\
-\midrule
-Baseline & 0 & 1024B & No MPU protection \\
-Simple & 2 & 1024B & Basic task isolation \\
-Standard & 4 & 1024B & Typical automotive configuration \\
-Complex & 6 & 1024B & Safety-critical configuration \\
-Maximum & 8 & 1024B & Full MPU capability \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Validation}: Multiple independent test runs ensure reproducibility and measurement reliability.
 
-\subsection{Measurement Implementation}
+\section{Automotive ECU Modeling}
 
-The context switch measurement implementation ensures accurate timing capture:
-
-\begin{algorithm}[h]
-\SetAlgoLined
-\KwResult{Context switch timing measurement}
-\SetKwFunction{FYield}{task\_yield}
-\SetKwFunction{FGetCycles}{dwt::get\_cycles}
-\SetKwFunction{FRecord}{record\_measurement}
-
-\SetKwProg{Fn}{Function}{:}{}
-\Fn{measure\_context\_switch()}{
-    measurements $\leftarrow$ [0; 100]\;
-    \For{i $\leftarrow$ 0 \KwTo 100}{
-        \FYield{} \tcp{Synchronize measurement start}
-        start\_cycles $\leftarrow$ \FGetCycles{}\;
-        \FYield{} \tcp{Switch to other task and back}
-        end\_cycles $\leftarrow$ \FGetCycles{}\;
-        measurements[i] $\leftarrow$ end\_cycles - start\_cycles\;
-    }
-    \FRecord{measurements}\;
-}
-\caption{Context Switch Timing Measurement}
-\label{alg:context-switch-measurement}
-\end{algorithm}
-
-\subsection{Expected Performance Characteristics}
-
-Based on ARM Cortex-M4 architecture analysis and preliminary measurements, expected performance ranges include:
-
+Benchmarks model realistic automotive workloads:
 \begin{itemize}
-    \item \textbf{Baseline Context Switch}: 260-300 cycles (1.4-1.7 μs at 180MHz)
-    \item \textbf{MPU-enabled Context Switch}: 330-400 cycles (1.8-2.2 μs at 180MHz)
-    \item \textbf{MPU Reconfiguration Overhead}: 60-100 cycles per context switch
+    \item Engine control: 1ms periodic tasks
+    \item Chassis systems: 10ms safety-critical functions
+    \item Body electronics: 100ms comfort features
+    \item CAN communication: Network message handling
 \end{itemize}
 
-\section{Inter-Process Communication Evaluation}
-
-IPC mechanisms enable coordination between automotive ECU tasks while maintaining isolation. Performance analysis of IPC under MPU protection is crucial for understanding system-level communication costs.
-
-\subsection{Message Queue Performance Analysis}
-
-Message queues provide asynchronous communication suitable for automotive event-driven architectures:
-
-\textbf{Round-trip Latency Measurement}: The benchmark measures complete message round-trip time including queue operations and task scheduling overhead under MPU protection.
-
-\textbf{Throughput Analysis}: Sustained message throughput measurement evaluates system capacity under continuous communication loads typical in automotive networks.
-
-\textbf{Queue Overflow Handling}: Performance measurement of queue overflow conditions and recovery mechanisms relevant to automotive fault handling requirements.
-
-\begin{lstlisting}[language=Rust, caption=IPC Latency Measurement]
-fn measure_ipc_round_trip() -> BenchmarkStats {
-    let mut latencies = Vec::new();
-
-    for iteration in 0..50 {
-        let start = dwt::get_cycles();
-
-        // Send message through protected queue
-        let message = BenchmarkMessage::new(iteration);
-        message_queue.send(message).unwrap();
-
-        // Receive response message
-        let response = message_queue.receive().unwrap();
-        let end = dwt::get_cycles();
-
-        latencies.push(end - start);
-    }
-
-    BenchmarkStats::from_measurements(&latencies)
-}
-\end{lstlisting}
-
-\subsection{Shared Memory Access Patterns}
-
-Shared memory provides high-performance communication suitable for large data transfers between automotive tasks:
-
-\textbf{Protected Memory Allocation}: Measurement of memory allocation and deallocation operations under MPU protection, including region setup overhead.
-
-\textbf{Access Pattern Analysis}: Evaluation of different memory access patterns (sequential, random, stride-based) with MPU validation overhead.
-
-\textbf{Synchronization Overhead}: Performance impact of mutex-based synchronization for shared memory access under MPU protection.
-
-\section{Memory Access Pattern Analysis}
-
-Memory access patterns significantly impact MPU performance due to permission checking requirements. Comprehensive analysis across different access patterns provides insight into optimization opportunities.
-
-\subsection{Sequential Access Measurement}
-
-Sequential memory access represents optimal access patterns for most automotive data processing operations:
-
-\begin{lstlisting}[language=Rust, caption=Sequential Memory Access Benchmark]
-fn benchmark_sequential_access(buffer: &mut [u8]) -> u32 {
-    let start = dwt::get_cycles();
-
-    // Write phase - sequential pattern
-    for i in 0..buffer.len() {
-        buffer[i] = (i & 0xFF) as u8;
-    }
-
-    // Read phase - sequential pattern with computation
-    let mut checksum = 0u32;
-    for &byte in buffer.iter() {
-        checksum = checksum.wrapping_add(byte as u32);
-    }
-
-    let end = dwt::get_cycles();
-
-    // Prevent compiler optimization
-    core::ptr::write_volatile(&checksum, checksum);
-
-    end - start
-}
-\end{lstlisting}
-
-\subsection{Random Access Pattern Evaluation}
-
-Random memory access patterns represent worst-case scenarios for cache performance and MPU overhead:
-
-\textbf{Cache Miss Impact}: Analysis of MPU overhead interaction with cache miss penalties, relevant to automotive applications with irregular data access patterns.
-
-\textbf{Permission Check Distribution}: Evaluation of MPU validation overhead across random memory access patterns that may cross protection boundaries.
-
-\subsection{Memory Allocation Performance}
-
-Dynamic memory allocation performance under MPU protection affects automotive applications requiring runtime resource management:
-
-\begin{table}[h]
-\centering
-\caption{Memory Allocation Test Scenarios}
-\label{tab:allocation-scenarios}
-\begin{tabular}{@{}lccl@{}}
-\toprule
-Block Size & Iterations & Alignment & Usage Pattern \\
-\midrule
-64 bytes & 20 & 4-byte & Small object allocation \\
-128 bytes & 20 & 8-byte & Medium buffer allocation \\
-256 bytes & 20 & 16-byte & Large buffer allocation \\
-512 bytes & 20 & 32-byte & Packet buffer allocation \\
-1024 bytes & 20 & 64-byte & Frame buffer allocation \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\section{Statistical Analysis Methodology}
-
-Rigorous statistical analysis ensures reliable interpretation of performance measurements and identification of significant trends.
-
-\subsection{Measurement Collection Procedures}
-
-Systematic measurement procedures minimize sources of variability:
-
-\textbf{Warm-up Procedures}: Each benchmark includes 10-50 warm-up iterations to stabilize processor state including caches, branch predictors, and memory system state.
-
-\textbf{Sample Size Determination}: Statistical power analysis determines minimum sample sizes (typically 100-1000 samples) required for detecting meaningful performance differences.
-
-\textbf{Environmental Control}: Measurements are conducted under controlled conditions with consistent clock frequencies, power supply, and temperature to minimize external variability sources.
-
-\subsection{Statistical Measures}
-
-Comprehensive statistical analysis includes multiple measures relevant to real-time system analysis:
-
-\begin{itemize}
-    \item \textbf{Central Tendency}: Mean and median execution times for typical performance characterization
-    \item \textbf{Variability}: Standard deviation and coefficient of variation for timing predictability analysis
-    \item \textbf{Distribution Characteristics}: 95th and 99th percentile values for worst-case execution time analysis
-    \item \textbf{Outlier Analysis}: Identification and characterization of timing outliers that could impact real-time guarantees
-\end{itemize}
-
-\subsection{Hypothesis Testing}
-
-Statistical significance testing validates performance differences between MPU-enabled and baseline configurations:
-
-\textbf{Paired t-tests}: Compare performance between MPU-enabled and disabled configurations for identical workloads.
-
-\textbf{Analysis of Variance (ANOVA)}: Evaluate performance differences across multiple MPU configurations to identify optimal settings.
-
-\textbf{Confidence Intervals}: Establish confidence bounds on performance measurements to support engineering decision-making.
-
-\section{Validation and Verification Procedures}
-
-Comprehensive validation ensures measurement accuracy and relevance to automotive applications.
-
-\subsection{Measurement Accuracy Validation}
-
-Multiple validation techniques verify measurement system accuracy:
-
-\textbf{Synthetic Validation}: Known-duration operations (e.g., controlled loop counts) validate cycle counter accuracy and measurement overhead characterization.
-
-\textbf{Cross-validation}: Independent measurement approaches verify consistency of performance results across different measurement techniques.
-
-\textbf{Reproducibility Testing}: Repeated measurements under identical conditions verify measurement system stability and identify sources of measurement variability.
-
-\subsection{Automotive Relevance Verification}
-
-Validation procedures ensure benchmark relevance to actual automotive ECU operation:
-
-\textbf{Workload Characterization}: Comparison of benchmark characteristics with real automotive application profiles to ensure representative behavior.
-
-\textbf{Timing Constraint Validation}: Verification that measured performance characteristics align with actual automotive timing requirements across different ECU categories.
-
-This comprehensive experimental methodology provides the foundation for reliable MPU performance analysis applicable to real automotive ECU development and deployment decisions.
+Each category evaluated under different MPU protection levels to determine real-world performance impact.

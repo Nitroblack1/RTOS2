@@ -6,7 +6,7 @@ use app_macros::app;
 static mut PACKET_COUNT: u32 = 0;
 static mut BYTES_PROCESSED: u32 = 0;
 
-#[app(id = 6, stack_size = 512, name = "network_stack")]
+#[app(id = 3, stack_size = 1024, name = "network_stack")]
 pub unsafe extern "C" fn network_stack() -> ! {
     // Direct RTT log to bypass syscall system
     rtt_target::rprintln!("[APP] network_stack ENTERED - direct RTT log");

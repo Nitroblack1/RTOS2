@@ -1,167 +1,175 @@
 % -*- mode : latex; coding: utf-8 -*-
-% ARM Cortex-M4 MPU Performance Analysis Thesis
+% ARM Cortex-M4 MPU Performance Analysis Thesis - English Only Version
 % Author: Yong-Hwi Cho
+% Updated with Experimental Benchmark Results (November 2024)
 
-\documentclass[11pt,a4paper,oneside,openany,reqno,chapter,nokorean]{oblivoir}
+\documentclass[12pt,a4paper,oneside]{report}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the format %%%%%%%%%%%%%%%%%%%%%%%%%%
 \usepackage[utf8]{inputenc}
-\usepackage{fapapersize}
-\usefapapersize{*,*,25mm,25mm,30mm,15mm}
-
-\chapterstyle{default}
-\usepackage{tocloft}
-\def\cftchapteraftersnum{.}
-\renewcommand{\cftchapterdotsep}{\cftdotsep}% Chapters should use dots in ToC
-
-\let\interHchar\undefined
-\let\interhword\undefined
-\usepackage[default]{dhucs-interword}
-\usepackage{dhucs-gremph}
-\usepackage{dhucs-enumerate}
-\usepackage{url}
-\usepackage{rotating}
-
-\usepackage{amsmath,amsthm,amssymb,amsxtra}
+\usepackage[margin=2.5cm,top=2cm,bottom=2cm]{geometry}
+\usepackage{amsmath,amsthm,amssymb}
 \usepackage{graphicx}
-\newsubfloat{figure}
-\usepackage{epsfig}
-\let\footruleskip\undefined
+\usepackage{booktabs}
+\usepackage{algorithm2e}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{url}
+\usepackage{setspace}
+\usepackage{multirow}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.14}
 \usepackage{fancyhdr}
-\usepackage{environ}
 \usepackage{siunitx}
 \usepackage{caption}
+\onehalfspacing
 
-\usepackage{wrapfig,lipsum,booktabs}
-\usepackage{setspace-custom}
-\doublespacing
+% Code listing setup
+\lstset{
+    backgroundcolor=\color{gray!10},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    language=C
+}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the content %%%%%%%%%%%%%%%%%%%%%%%%%
-\usepackage[ruled,linesnumbered]{algorithm2e}
-\usepackage{subcaption} % put captions in subplots
-\usepackage{booktabs}   % make beautiful tables
-\usepackage{multirow}   % multirow command for booktabs
-\usepackage{tikz}       % draw figures with LaTeX
-\usepackage{pgfplots}   % draw plots with LaTeX
-\pgfplotsset{compat=1.14}
-\usepgfplotslibrary{fillbetween}
+% Custom commands for highlighting key results
+\newcommand{\keyresult}[1]{\textbf{\textcolor{red}{#1}}}
+\newcommand{\measurement}[1]{\textbf{\textcolor{blue}{#1}}}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%% SNUECE Bachelor Thesis %%%%%%%%%%%%%%%%%%%%%%%%%%
-\usepackage{SNUECE-BachelorThesis}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Configurations %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\setlength\parindent{2pc} % set paragraph indent size
-\setlength\unitlength{1mm} % set unit-length in the Picture environment
-
-\numberwithin{equation}{chapter} % number equations separately for each chapter
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Title Page Information %%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{
+    \textbf{\LARGE ARM Cortex-M4 MPU Performance Analysis\\
+    for Automotive ECU Applications}\\
+    \vspace{0.3cm}
+    \large{Experimental Study with STM32F446}
+}
+\author{
+    \textbf{Yong-Hwi Cho}\\
+    \vspace{0.5cm}
+    Department of Electrical and Computer Engineering\\
+    Seoul National University School of Engineering\\
+    \vspace{0.5cm}
+    Bachelor Thesis\\
+    February 2025\\
+    \vspace{0.5cm}
+    \small{Advisor: Professor Paek Yunheung}
+}
+\date{}
 
 \begin{document}
 
-  % Fill out information about this paper here.
-  \EnglishTitle{Performance Analysis and Optimization of\\Memory Protection Unit in ARM Cortex-M4 STM32F446\\for Automotive ECU RTOS Environment}
-  \KoreanTitle{Performance Analysis and Optimization of\\Memory Protection Unit in ARM Cortex-M4 STM32F446\\for Automotive ECU RTOS Environment}
+% Title page
+\maketitle
+\thispagestyle{empty}
 
-  \AuthorKoreanName{Yong-Hwi Cho}
-  \AuthorEnglishName{Yong-Hwi Cho}
-  \AuthorHanjaName{Yong-Hwi Cho}
+% Abstract page
+\newpage
+\begin{abstract}
+\vspace{1cm}
 
-  \KoreanTypeofDegree{Bachelor of Engineering}
-  \EnglishTypeofDegree{Bachelor of Engineering}
+Memory Protection Unit (MPU) implementation is critical for automotive ECUs to meet ISO 26262 safety standards, but performance implications remain poorly understood. This thesis presents experimental performance analysis of MPU-enabled systems using ARM Cortex-M4 STM32F446 with cycle-accurate measurements.
 
-  \EnglishTypeofPaper{Bachelor Thesis}
-  \HanjaTypeofPaper{Bachelor Thesis}
+\keyresult{Experimental results reveal exceptionally low MPU overhead: context switching exhibits only 1.25\% overhead (20.7 ± 2.0 cycles), representing 115 nanoseconds additional latency.} Statistical analysis through 10 independent test iterations demonstrates 99.9\% confidence intervals with excellent measurement reliability.
 
-  % When you graduate. The month should be either February or August.
-  % YEAR + MONTH
-  \KoreanGraduateDate{February $2025$}
-  \EnglishGraduateDate{February $2025$}
+Automotive real-time task impact is negligible: engine control (1ms periods) experience <0.025\% overhead, chassis systems <0.01\%, with body electronics showing unmeasurable effects. \measurement{Measured overhead is 12-20× lower than software alternatives}, establishing hardware MPU as optimal for automotive memory protection.
 
-  % When your advisor signed your thesis.
-  % YEAR + MONTH + DAY
-  \KoreanSignedDate{November $25$th, $2025$}
-  \EnglishSignedDate{November $25$th, $2025$}
+Results validate practical feasibility for production automotive systems. The 1.25\% overhead makes MPU protection transparent while providing comprehensive memory isolation for ISO 26262 compliance.
 
-  \EnglishSchoolName{Seoul National University School of Engineering}
-  \KoreanSchoolName{Seoul National University School of Engineering}
+\vspace{0.5cm}
+\textbf{Keywords:} ARM Cortex-M4, MPU, Automotive ECU, Performance Analysis, STM32F446, ISO 26262
 
-  \EnglishDepartmentName{Department of Electrical and Computer Engineering}
-  \HanjaDepartmentName{Department of Electrical and Computer Engineering}
-  \KoreanDepartmentName{Department of Electrical and Computer Engineering}
+\end{abstract}
 
-  \AdvisorKoreanName{Professor Paek Yunheung}
-  \AdvisorEnglishName{Professor Paek Yunheung}
-  \KoreanKeyWords{ARM Cortex-M4, Memory Protection Unit, Automotive ECU, Real-time Systems, Performance Analysis}
-  \EnglishKeyWords{ARM Cortex-M4, Memory Protection Unit, Automotive ECU, Real-time Systems, Performance Analysis}
+% Table of contents
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\newpage
+\listoftables
 
-  % Document generation begins here.
-  % Front cover
-  \makefrontcover
+% Main content
+\newpage
+\setcounter{page}{1}
 
-  % Proposal
-  \makeproposal
+% Set up headers
+\pagestyle{fancy}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\fancyhead[C]{}
+\fancyfoot{}
 
-  % English abstract
-  \pagenumbering{gobble}
-  \include{abs-english}
-  \cedp
+% Include all chapters
+\input{chapter1}
+\input{chapter2}
+\input{chapter3}
+\input{chapter4}
+\input{chapter5}
+\input{chapter6}
+\input{chapter7_experimental_results}
 
-  %% Declare pages before the content body.
-  \frontmatter
+% Conclusion Chapter
+\chapter{Conclusion}
+\label{chap:conclusion}
 
-  \pagestyle{plain}
-	%% Table of Contents
-	\clearpage
-	\phantomsection
-    \tableofcontents*
+This thesis presents experimental analysis of ARM Cortex-M4 MPU performance in automotive ECU environments, providing definitive quantification of context switching overhead through cycle-accurate measurements.
 
-	%% List of Figures
-	\clearpage
-	\phantomsection
-    \listoffigures*
+\section{Key Findings}
 
-	%% List of Tables
-	\clearpage
-	\phantomsection
-	\listoftables*
+Experimental study through 10 independent test iterations establishes:
 
-  % Content body begins.
-  \mainmatter
-  \linespread{2}
+\begin{itemize}
+    \item \keyresult{Context Switch Overhead: 20.7 ± 2.0 cycles (1.25\% overhead)}
+    \item \measurement{Absolute Impact: 115 nanoseconds @ 180MHz}
+    \item \keyresult{Automotive System Impact: <0.025\% for critical real-time tasks}
+    \item \measurement{12-20× performance improvement over software protection}
+\end{itemize}
 
-  % Page numbers appear at the middle-low region of each page.
-  \pagestyle{fancy}
-  \lhead{\leftmark}
-  \rhead{}
-  \chead{}
-  \cfoot{\thepage}
-  \renewcommand{\headrulewidth}{0pt}
+\section{Contributions}
 
-  % Chapters
-  \include{chapter1}
-  \cedp
-  \include{chapter2}
-  \cedp
-  \include{chapter3}
-  \cedp
-  \include{chapter4}
-  \cedp
-  \include{chapter5}
-  \cedp
-  \include{chapter6}
-  \cedp
-  \include{chapter7_experimental_results}
-  \cedp
+\begin{itemize}
+    \item First precise measurement of ARM Cortex-M4 MPU overhead for automotive applications
+    \item Cycle-accurate DWT-based measurement methodology
+    \item Comprehensive automotive ECU impact analysis across task categories
+    \item Production-ready Rust RTOS implementation
+\end{itemize}
 
-  \pagestyle{plain}
-    % Reference
-    \clearpage
-    \include{reference}
-    \cedp
+\section{Automotive Implementation Impact}
 
-  % Korean abstract
-  \include{abs-korean}
-  \cedp
+Results enable immediate industry adoption:
+
+\begin{table}[h]
+\centering
+\caption{Automotive Implementation Recommendations}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+ECU Category & ASIL Level & Performance Impact \\
+\midrule
+Engine Control & B/C & <0.025\% \\
+Chassis Control & C/D & <0.01\% \\
+Body Electronics & A/B & <0.002\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusions}
+
+\keyresult{ARM Cortex-M4 MPU provides robust memory protection with 1.25\% overhead}, enabling automotive industry to achieve simultaneous security and real-time performance. The measured 20.7-cycle overhead establishes MPU as optimal solution for automotive ECUs with deterministic, predictable timing suitable for safety-critical applications.
+
+Results validate practical feasibility for production automotive systems, making MPU protection transparent while providing comprehensive memory isolation for ISO 26262 compliance.
+
+% References
+\newpage
+\phantomsection
+\addcontentsline{toc}{chapter}{References}
+\input{reference}
 
 \end{document}

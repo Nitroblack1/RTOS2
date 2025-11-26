@@ -2,273 +2,80 @@
 \chapter{Experimental Results and Performance Analysis}
 \label{sec:experimental-results}
 
-This chapter presents comprehensive experimental results from the STM32F446RE-based MPU performance benchmarking system. The experiments quantify the exact context switching overhead introduced by the ARM Cortex-M4 MPU under realistic automotive ECU conditions, providing empirical validation of the proposed memory protection framework.
-
 \section{Experimental Setup}
 
-\subsection{Hardware Configuration}
-The experimental platform consists of:
-\begin{itemize}
-    \item \textbf{Microcontroller}: STM32F446RE (ARM Cortex-M4F @ 180MHz)
-    \item \textbf{Memory}: 512KB Flash, 128KB SRAM with MPU support
-    \item \textbf{Development Board}: NUCLEO-F446RE with debugging capability
-    \item \textbf{Measurement Tools}: RTT (Real-Time Transfer) for data logging, DWT (Data Watchpoint and Trace) for cycle-accurate timing
-\end{itemize}
+\textbf{Hardware}: STM32F446RE (ARM Cortex-M4F @ 180MHz), 512KB Flash, 128KB SRAM with 8-region MPU support
 
-\subsection{Software Environment}
-The benchmarking system implements:
-\begin{itemize}
-    \item \textbf{Real-time OS}: Custom cooperative scheduler optimized for automotive applications
-    \item \textbf{MPU Configuration}: Dynamic 3-tier trust model with kernel, application, and IPC regions
-    \item \textbf{Measurement Framework}: High-resolution cycle counter with statistical analysis
-    \item \textbf{Development Tools}: Rust embedded ecosystem with probe-rs for hardware debugging
-\end{itemize}
+\textbf{Software}: Custom Rust-based RTOS with cycle-accurate DWT measurement and RTT data logging
 
-\subsection{Experimental Methodology}
-The benchmark measures context switching performance under two conditions:
-\begin{enumerate}
-    \item \textbf{MPU Enabled}: Full memory protection with dynamic region reconfiguration
-    \item \textbf{MPU Disabled}: Baseline performance without hardware memory protection
-\end{enumerate}
-
-Each test iteration performs 100 context switches per condition, measuring execution cycles using the ARM DWT cycle counter. Statistical analysis includes mean, median, standard deviation, and confidence intervals to ensure measurement reliability.
+\textbf{Methodology}: 10 independent test iterations measuring context switch overhead with MPU enabled vs disabled configurations
 
 \section{Performance Measurement Results}
 
-\subsection{Raw Experimental Data}
+\subsection{Key Experimental Findings}
 
-Table~\ref{tab:benchmark-raw-data} presents the complete dataset from 10 independent test iterations, providing comprehensive statistical coverage for reliable performance analysis.
+\textbf{Measured Overhead}: 20.7 ± 2.0 cycles (1.25 ± 0.12\%)
 
-\begin{table}[h]
-\centering
-\caption{Complete MPU Context Switch Performance Dataset (n=10)}
-\label{tab:benchmark-raw-data}
-\begin{tabular}{@{}cccccc@{}}
-\toprule
-Test & MPU ON & MPU OFF & Overhead & Overhead & Time \\
-Iteration & (cycles) & (cycles) & (cycles) & (\%) & (μs) \\
-\midrule
-1 & 1685 & 1659 & 26 & 1.57 & 0.14 \\
-2 & 1679 & 1658 & 21 & 1.27 & 0.12 \\
-3 & 1679 & 1659 & 20 & 1.21 & 0.11 \\
-4 & 1679 & 1658 & 21 & 1.27 & 0.12 \\
-5 & 1678 & 1659 & 19 & 1.15 & 0.11 \\
-6 & 1679 & 1659 & 20 & 1.21 & 0.11 \\
-7 & 1679 & 1659 & 20 & 1.21 & 0.11 \\
-8 & 1679 & 1659 & 20 & 1.21 & 0.11 \\
-9 & 1679 & 1659 & 20 & 1.21 & 0.11 \\
-10 & 1679 & 1659 & 20 & 1.21 & 0.11 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\textbf{Absolute Time Impact}: 115 nanoseconds @ 180MHz CPU frequency
 
-\subsection{Statistical Analysis}
-
-Table~\ref{tab:statistical-analysis} summarizes the statistical characteristics of the measured MPU overhead, demonstrating excellent measurement consistency and system stability.
+\textbf{Statistical Reliability}: 99.9\% confidence interval with coefficient of variation 9.7\%
 
 \begin{table}[h]
 \centering
-\caption{Statistical Analysis of MPU Context Switch Overhead}
-\label{tab:statistical-analysis}
+\caption{MPU Context Switch Performance Summary (n=10)}
+\label{tab:benchmark-summary}
 \begin{tabular}{@{}lcc@{}}
 \toprule
-Statistical Metric & Value (cycles) & Value (\%) \\
+Metric & Cycles & Percentage \\
 \midrule
-Mean Overhead & 20.7 ± 2.0 & 1.25 ± 0.12 \\
-Median Overhead & 20 & 1.21 \\
-Mode (Most Frequent) & 20 & 1.21 \\
-Standard Deviation & 2.0 & 0.12 \\
-Coefficient of Variation & 9.7\% & 9.6\% \\
-Minimum Overhead & 19 & 1.15 \\
-Maximum Overhead & 26 & 1.57 \\
-99.9\% Confidence Interval & 20.7 ± 1.4 & 1.25 ± 0.08 \\
+Mean Overhead & 20.7 ± 2.0 & 1.25 ± 0.12\% \\
+Median & 20 & 1.21\% \\
+Standard Deviation & 2.0 & 0.12\% \\
+Min - Max Range & 19 - 26 & 1.15 - 1.57\% \\
+99.9\% Confidence Interval & 20.7 ± 1.4 & 1.25 ± 0.08\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\section{Performance Analysis}
+\section{Automotive ECU Performance Impact}
 
-\subsection{System Convergence Analysis}
+\subsection{Real-World Application Analysis}
 
-Figure~\ref{fig:convergence-analysis} illustrates the convergence behavior of the measurement system over 10 test iterations, showing rapid stabilization after initial system warm-up.
-
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    width=0.8\textwidth,
-    height=6cm,
-    xlabel={Test Iteration},
-    ylabel={MPU Overhead (cycles)},
-    xmin=1, xmax=10,
-    ymin=18, ymax=27,
-    xtick={1,2,3,4,5,6,7,8,9,10},
-    ytick={19,20,21,22,23,24,25,26},
-    grid=major,
-    legend pos=north east,
-]
-
-% Raw data points
-\addplot[mark=*, mark size=3pt, blue, line width=1.5pt] coordinates {
-    (1,26) (2,21) (3,20) (4,21) (5,19) (6,20) (7,20) (8,20) (9,20) (10,20)
-};
-
-% Mean line
-\addplot[red, dashed, line width=1pt] coordinates {
-    (1,20.7) (10,20.7)
-};
-
-% Confidence interval
-\addplot[red, dotted, line width=1pt] coordinates {
-    (1,22.1) (10,22.1)
-};
-\addplot[red, dotted, line width=1pt] coordinates {
-    (1,19.3) (10,19.3)
-};
-
-\legend{Measured Overhead, Mean (20.7 cycles), 95\% CI}
-\end{axis}
-\end{tikzpicture}
-\caption{MPU Overhead Convergence Analysis Showing System Stabilization}
-\label{fig:convergence-analysis}
-\end{figure}
-
-The convergence analysis reveals:
-\begin{itemize}
-    \item \textbf{Initial Variability}: Test 1 shows higher overhead (26 cycles) due to system initialization effects
-    \item \textbf{Rapid Stabilization}: Tests 2-4 show convergence toward steady-state performance
-    \item \textbf{Excellent Consistency}: Tests 6-10 show identical results (20 cycles), confirming system stability
-\end{itemize}
-
-\subsection{Performance Distribution Analysis}
-
-Figure~\ref{fig:performance-distribution} presents the distribution of measured MPU overhead values, demonstrating the tight clustering around the mean value.
-
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    width=0.8\textwidth,
-    height=6cm,
-    xlabel={MPU Overhead (cycles)},
-    ylabel={Frequency},
-    xmin=18, xmax=27,
-    ymin=0, ymax=7,
-    xtick={19,20,21,22,23,24,25,26},
-    ytick={0,1,2,3,4,5,6,7},
-    grid=major,
-    ybar,
-    bar width=0.8,
-]
-
-\addplot[fill=blue!50, draw=blue] coordinates {
-    (19,1) (20,6) (21,2) (22,0) (23,0) (24,0) (25,0) (26,1)
-};
-
-\end{axis}
-\end{tikzpicture}
-\caption{Distribution of MPU Context Switch Overhead Measurements}
-\label{fig:performance-distribution}
-\end{figure}
-
-The distribution analysis shows:
-\begin{itemize}
-    \item \textbf{Modal Value}: 20 cycles (60\% of measurements)
-    \item \textbf{Tight Distribution}: 90\% of values within ±1 cycle of mode
-    \item \textbf{Low Variability}: Standard deviation of only 2.0 cycles
-\end{itemize}
-
-\section{Automotive ECU Impact Analysis}
-
-\subsection{Real-time System Performance Impact}
-
-Table~\ref{tab:realtime-impact} quantifies the impact of MPU overhead on typical automotive ECU real-time tasks.
+Table~\ref{tab:automotive-impact} quantifies performance impact on typical automotive ECU applications:
 
 \begin{table}[h]
 \centering
-\caption{MPU Impact on Automotive ECU Real-time Performance}
-\label{tab:realtime-impact}
-\begin{tabular}{@{}lccc@{}}
+\caption{Automotive ECU Performance Impact Analysis}
+\label{tab:automotive-impact}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-Task Period & Context Switches & MPU Overhead & Performance \\
-& per Period & per Period & Impact \\
+ECU Application & Period & Context Switches & Overhead & Impact \\
 \midrule
-Engine Control (1ms) & 2-4 & 41-83 cycles & 0.023-0.046\% \\
-CAN Bus Handler (5ms) & 1-2 & 21-42 cycles & 0.002-0.005\% \\
-Sensor Processing (10ms) & 4-8 & 83-166 cycles & 0.005-0.009\% \\
-Dashboard Update (100ms) & 10-20 & 207-414 cycles & 0.001-0.002\% \\
-Diagnostic (1000ms) & 50-100 & 1035-2070 cycles & 0.001-0.001\% \\
+Engine Control (1ms) & 1ms & 3 & 62.1 cycles & 0.023\% \\
+CAN Handler (5ms) & 5ms & 1 & 20.7 cycles & 0.002\% \\
+Sensor Processing (10ms) & 10ms & 6 & 124.2 cycles & 0.007\% \\
+Dashboard Update (100ms) & 100ms & 15 & 310.5 cycles & 0.002\% \\
+Diagnostic (1000ms) & 1000ms & 75 & 1552.5 cycles & 0.0009\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Power Consumption Analysis}
+\subsection{Convergence Analysis}
 
-The measured 20.7 cycle MPU overhead translates to minimal additional power consumption:
-
+The measurement system demonstrated excellent stability with final 6 test iterations converging to identical 20-cycle results, indicating:
 \begin{itemize}
-    \item \textbf{Additional Execution Time}: 115 nanoseconds @ 180MHz
-    \item \textbf{Additional Power}: < 0.1\% increase in dynamic power consumption
-    \item \textbf{Battery Life Impact}: Negligible in automotive applications
+    \item Reliable measurement methodology
+    \item Stable system behavior
+    \item Predictable MPU overhead characteristics
 \end{itemize}
 
-\section{Comparison with Literature}
+\section{Performance Comparison}
 
-Table~\ref{tab:literature-comparison} compares our measured results with existing literature on MPU performance overhead.
-
-\begin{table}[h]
-\centering
-\caption{Comparison with Existing MPU Performance Literature}
-\label{tab:literature-comparison}
-\begin{tabular}{@{}lccc@{}}
-\toprule
-Study & Platform & Protection & Overhead \\
-& & Mechanism & (\%) \\
-\midrule
-This Work & STM32F446 (Cortex-M4) & Hardware MPU & \textbf{1.25} \\
-Zhang et al. [15] & STM32F4 & Software Protection & 15-25 \\
-Kumar et al. [16] & Cortex-M3 & Basic MPU & 3-8 \\
-Industrial Report [17] & Generic Cortex-M & Memory Manager & 10-20 \\
-Academic Study [18] & ARM926EJ-S & MMU-based & 5-15 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Our results demonstrate significantly lower overhead compared to existing approaches:
+The measured 1.25\% MPU overhead significantly outperforms existing protection mechanisms:
 \begin{itemize}
-    \item \textbf{12-20× better} than software-only protection schemes
-    \item \textbf{2-6× better} than basic MPU implementations
-    \item \textbf{4-12× better} than MMU-based protection systems
+    \item \textbf{This Work (Hardware MPU)}: 1.25\% overhead
+    \item Software-based Protection: 15-25\% typical overhead
+    \item Performance Advantage: 12-20× better than software alternatives
 \end{itemize}
 
-\section{Validation and Reliability}
-
-\subsection{Measurement Reliability}
-The experimental methodology ensures high measurement reliability through:
-\begin{itemize}
-    \item \textbf{Hardware-based Timing}: DWT cycle counter provides nanosecond precision
-    \item \textbf{Statistical Rigor}: 10 independent test iterations with 100 measurements each
-    \item \textbf{System Isolation}: Single-task benchmark eliminates interference
-    \item \textbf{Consistent Environment}: Controlled temperature and power conditions
-\end{itemize}
-
-\subsection{Result Validity}
-The convergence to identical measurements in the final 6 test iterations (20 cycles) demonstrates:
-\begin{itemize}
-    \item \textbf{System Stability}: Complete elimination of measurement noise
-    \item \textbf{Thermal Equilibrium}: Stable operating conditions
-    \item \textbf{Cache Stabilization}: Consistent instruction and data access patterns
-\end{itemize}
-
-\section{Summary}
-
-This experimental analysis provides definitive quantification of MPU context switching overhead in automotive ECU systems:
-
-\begin{itemize}
-    \item \textbf{Measured Overhead}: 20.7 ± 2.0 cycles (1.25 ± 0.12\%)
-    \item \textbf{Absolute Impact}: 115 nanoseconds per context switch
-    \item \textbf{System Impact}: < 0.05\% for typical automotive real-time tasks
-    \item \textbf{Reliability}: 99.9\% statistical confidence with excellent measurement consistency
-\end{itemize}
-
-These results conclusively demonstrate that ARM Cortex-M4 MPU provides robust memory protection with negligible performance impact, making it highly suitable for safety-critical automotive ECU applications where both security and real-time performance are essential.
+This establishes hardware MPU as the optimal solution for automotive memory protection, providing robust security with negligible performance impact.
