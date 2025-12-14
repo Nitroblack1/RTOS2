@@ -1,0 +1,41 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{Experimental Setup and Methodology}
+\label{sec:experimental-methodology}
+
+\section{Benchmark Design}
+
+Three benchmark categories characterize MPU performance impact:
+
+\begin{enumerate}
+    \item \textbf{Context Switch Benchmarks}: Measure task switching overhead with/without MPU protection
+    \item \textbf{Inter-Process Communication}: Evaluate IPC mechanisms under MPU protection
+    \item \textbf{Memory Access Patterns}: Analyze memory performance with MPU validation
+\end{enumerate}
+
+\subsection{Context Switch Measurement}
+
+\textbf{Test Configuration}: Two identical tasks alternate execution with equal priority, isolating switching overhead from application processing.
+
+\textbf{MPU Variants}: Evaluated configurations from 2-region simple setup to 8-region complex automotive protection.
+
+\textbf{Measurement Procedure}: DWT cycle counter captures precise timing across 10 test iterations with 100 samples each for statistical significance.
+
+\section{Statistical Methodology}
+
+\textbf{Sample Collection}: Minimum 100 measurements per configuration with warm-up procedures and outlier detection.
+
+\textbf{Analysis}: Mean, standard deviation, confidence intervals, and percentile analysis for real-time constraint validation.
+
+\textbf{Validation}: Multiple independent test runs ensure reproducibility and measurement reliability.
+
+\section{Automotive ECU Modeling}
+
+Benchmarks model realistic automotive workloads:
+\begin{itemize}
+    \item Engine control: 1ms periodic tasks
+    \item Chassis systems: 10ms safety-critical functions
+    \item Body electronics: 100ms comfort features
+    \item CAN communication: Network message handling
+\end{itemize}
+
+Each category evaluated under different MPU protection levels to determine real-world performance impact.

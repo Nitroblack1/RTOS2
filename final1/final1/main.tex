@@ -1,0 +1,217 @@
+% -*- mode : latex; coding: utf-8 -*-
+% ARM Cortex-M4 MPU Performance Analysis Thesis - English Only Version
+% Author: Yong-Hwi Cho
+% Updated with Experimental Benchmark Results (November 2024)
+
+\documentclass[12pt,a4paper,oneside]{report}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% packages for the format %%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.5cm,top=2cm,bottom=2cm]{geometry}
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{algorithm2e}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{url}
+\usepackage{setspace}
+\usepackage{multirow}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.14}
+\usepackage{fancyhdr}
+\usepackage{siunitx}
+\usepackage{caption}
+\onehalfspacing
+
+% Code listing setup
+\lstset{
+    backgroundcolor=\color{gray!10},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    language=C
+}
+
+% Custom commands for highlighting key results
+\newcommand{\keyresult}[1]{\textbf{\textcolor{red}{#1}}}
+\newcommand{\measurement}[1]{\textbf{\textcolor{blue}{#1}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Title Page Information %%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{
+    \textbf{\LARGE ARM Cortex-M4 MPU Performance Analysis\\
+    for Automotive ECU Applications}\\
+    \vspace{0.3cm}
+    \large{Experimental Study with STM32F446}
+}
+\author{
+    \textbf{Yong-Hwi Cho}\\
+    \vspace{0.5cm}
+    Department of Electrical and Computer Engineering\\
+    Seoul National University School of Engineering\\
+    \vspace{0.5cm}
+    Bachelor Thesis\\
+    February 2025\\
+    \vspace{0.5cm}
+    \small{Advisor: Professor Paek Yunheung}
+}
+\date{}
+
+\begin{document}
+
+% Title page
+\maketitle
+\thispagestyle{empty}
+
+% Abstract page
+\newpage
+\begin{abstract}
+\vspace{1cm}
+
+Memory Protection Unit (MPU) implementation is critical for automotive ECUs to meet ISO 26262 safety standards, but performance implications remain poorly understood. This thesis presents experimental performance analysis of MPU-enabled systems using ARM Cortex-M4 STM32F446 with cycle-accurate measurements.
+
+\keyresult{Experimental results reveal MPU region allocation overhead of 990 ± 4 cycles (5.500 ± 0.022 μs) for protected IPC applications versus 130 ± 2 cycles (0.722 ± 0.011 μs) for baseline applications.} This represents a 7.6× performance factor with deterministic, predictable timing suitable for automotive real-time systems.
+
+\measurement{For typical automotive systems with 2 MPU-protected tasks, total overhead is 1980 cycles (11.0 μs)}, resulting in <1\% impact on engine control systems and <0.1\% impact on chassis control systems. The one-time initialization overhead is 10-20× lower than software protection alternatives while providing hardware-enforced security.
+
+Results validate practical feasibility for production automotive systems. \keyresult{MPU protection overhead remains within real-time constraints while providing comprehensive memory isolation for ISO 26262 compliance.}
+
+\vspace{0.5cm}
+\textbf{Keywords:} ARM Cortex-M4, MPU, Automotive ECU, Performance Analysis, STM32F446, ISO 26262
+
+\end{abstract}
+
+% Table of contents
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\newpage
+\listoftables
+
+% Main content
+\newpage
+\setcounter{page}{1}
+
+% Set up headers
+\pagestyle{fancy}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\fancyhead[C]{}
+\fancyfoot{}
+
+% Include all chapters
+\input{chapter1}
+\input{chapter2}
+\input{chapter3}
+\input{chapter4}
+\input{chapter5}
+\input{chapter6}
+\input{chapter7_experimental_results}
+
+% Conclusion Chapter
+\chapter{Conclusion}
+\label{chap:conclusion}
+
+This thesis presents experimental analysis of ARM Cortex-M4 MPU performance in automotive ECU environments, providing definitive quantification of context switching overhead through cycle-accurate measurements.
+
+\section{Key Findings}
+
+Experimental study of MPU region allocation performance establishes:
+
+\begin{itemize}
+    \item \keyresult{MPU Region Allocation: 990 ± 4 cycles (5.500 ± 0.022 μs)}
+    \item \measurement{Baseline Performance: 130 ± 2 cycles (0.722 ± 0.011 μs)}
+    \item \keyresult{Performance Overhead: 7.6× factor (860 cycles difference)}
+    \item \measurement{Automotive System Impact: <1\% for 2-task systems}
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    bar width=40pt,
+    width=15cm,
+    height=10cm,
+    xlabel={\Large Application Category},
+    ylabel={\Large Cycles},
+    ymin=0, ymax=1200,
+    symbolic x coords={Non-MPU Baseline,MPU Protected},
+    xtick=data,
+    x tick label style={font=\large},
+    tick label style={font=\large},
+    label style={font=\Large},
+    grid=major,
+    grid style={line width=0.3pt, draw=gray!40},
+    legend pos=north west,
+    legend style={font=\large},
+    enlarge x limits=0.4,
+    title={\Large\textbf{MPU vs Non-MPU Performance}}
+]
+
+% Clean bar chart with consistent colors
+\addplot[ybar, fill=blue!50, draw=blue!80, bar width=40pt]
+coordinates {(Non-MPU Baseline,130) (MPU Protected,990)};
+
+% Simple value labels
+\node at (axis cs:Non-MPU Baseline,145) [above] {\Large\textbf{130}};
+\node at (axis cs:MPU Protected,1005) [above] {\Large\textbf{990}};
+
+% Clean performance factor annotation
+\node at (axis cs:MPU Protected,500) [left] {\huge\textcolor{red}{\textbf{7.6× Overhead}}};
+
+\legend{\large Performance Comparison}
+\end{axis}
+\end{tikzpicture}
+\caption{Performance Comparison Summary}
+\label{fig:results_summary}
+\end{figure}
+
+\section{Contributions}
+
+\begin{itemize}
+    \item First precise measurement of ARM Cortex-M4 MPU overhead for automotive applications
+    \item Cycle-accurate DWT-based measurement methodology
+    \item Comprehensive automotive ECU impact analysis across task categories
+    \item Production-ready Rust RTOS implementation
+\end{itemize}
+
+\section{Automotive Implementation Impact}
+
+Results enable immediate industry adoption:
+
+\begin{table}[h]
+\centering
+\caption{Automotive Implementation Recommendations}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+ECU Category & ASIL Level & Performance Impact \\
+\midrule
+Engine Control & B/C & 0.61\% (2 MPU tasks) \\
+Chassis Control & C/D & 0.12\% (2 MPU tasks) \\
+Body Electronics & A/B & 0.01\% (2 MPU tasks) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusions}
+
+\keyresult{ARM Cortex-M4 MPU provides robust memory protection with deterministic 990-cycle initialization overhead}, enabling automotive industry to achieve simultaneous security and real-time performance. The measured 7.6× overhead factor establishes MPU as optimal solution for automotive ECUs with predictable timing suitable for safety-critical applications.
+
+Results validate practical feasibility for production automotive systems, making MPU protection transparent while providing comprehensive memory isolation for ISO 26262 compliance.
+
+% References
+\newpage
+\phantomsection
+\addcontentsline{toc}{chapter}{References}
+\input{reference}
+
+\end{document}

@@ -1,0 +1,28 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{Introduction}
+\label{sec:introduction}
+
+ARM Cortex-M4 microcontrollers have gained widespread adoption in automotive ECU applications due to their balance of performance and power efficiency. The STM32F446 operates at 180MHz with integrated Memory Protection Unit (MPU) capabilities essential for meeting ISO 26262 functional safety standards.
+
+The MPU provides hardware-enforced memory access control, enabling isolation between software components. However, introducing memory protection creates performance implications that must be characterized for real-time automotive applications where engine control systems require sub-millisecond response times.
+
+\section{Research Objectives}
+
+This thesis provides performance analysis of MPU-enabled systems in automotive ECU environments with the following objectives:
+
+\begin{enumerate}
+    \item \textbf{Performance Characterization}: Measure precise MPU overhead using cycle-accurate techniques
+    \item \textbf{Real-time Validation}: Evaluate compatibility with automotive timing requirements
+    \item \textbf{Optimization Strategies}: Develop techniques for minimizing MPU overhead
+    \item \textbf{Implementation Guidelines}: Provide recommendations for production systems
+\end{enumerate}
+
+\section{Contributions}
+
+This work contributes:
+\begin{itemize}
+    \item First detailed MPU overhead study for automotive ECU applications
+    \item Cycle-accurate measurements revealing 990-cycle MPU region allocation overhead (7.6× vs baseline)
+    \item Validation of real-time constraint compatibility across ECU categories
+    \item Production-ready Rust RTOS implementation with MPU support
+\end{itemize}

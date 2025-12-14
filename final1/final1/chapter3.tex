@@ -1,0 +1,90 @@
+% -*- mode : latex; coding: utf-8 -*-
+\chapter{System Design and Implementation}
+\label{sec:system-design}
+
+\section{Hardware Platform}
+
+The STM32F446RE evaluation platform provides:
+\begin{itemize}
+    \item ARM Cortex-M4F @ 180MHz (225 DMIPS)
+    \item 512KB Flash, 128KB SRAM
+    \item 8-region MPU with sub-region disable
+    \item Automotive features: -40°C to +105°C, CAN interface
+\end{itemize}
+
+\section{Rust-based RTOS}
+
+Custom RTOS implementation provides:
+
+\textbf{Memory Safety}: Compile-time verification complements hardware MPU protection. Zero-cost abstractions ensure performance without garbage collection overhead.
+
+\textbf{Task Management}: Priority-based preemptive scheduling with automatic MPU reconfiguration during context switches. Static memory allocation ensures deterministic behavior.
+
+\begin{lstlisting}[language=Rust, caption=MPU Configuration Interface, basicstyle=\tiny\ttfamily]
+pub unsafe fn configure_region(id: RegionId, region: MpuRegion) {
+    let start_cycles = dwt::get_cycles();
+    self.write_mpu_registers(id, &region);
+    let end_cycles = dwt::get_cycles();
+    self.record_config_overhead(end_cycles - start_cycles);
+}
+\end{lstlisting}
+
+\section{MPU Configuration}
+
+Memory region strategy:
+\begin{itemize}
+    \item \textbf{Region 0}: Flash (0x08000000-0x0807FFFF) - Execute/Read
+    \item \textbf{Region 1}: SRAM (0x20000000-0x2001FFFF) - Read/Write, no execute
+    \item \textbf{Region 2}: Peripherals (0x40000000-0x5FFFFFFF) - Device memory
+    \item \textbf{Regions 3-7}: Task-specific dynamic regions for isolation
+\end{itemize}
+
+\textbf{Optimization}: Lazy reconfiguration, region caching, and batch configuration minimize overhead while maintaining security.
+
+\section{Performance Measurement}
+
+DWT cycle counter enables precise timing measurement:
+
+\begin{lstlisting}[language=Rust, caption=Cycle Counter Implementation, basicstyle=\tiny\ttfamily]
+#[inline(always)]
+pub fn get_cycles() -> u32 {
+    unsafe { ptr::read_volatile(0xE0001004 as *mut u32) }
+}
+\end{lstlisting}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[node distance=2.5cm, auto]
+    % Define styles with better spacing
+    \tikzstyle{process} = [rectangle, draw=blue!80, fill=blue!15, text width=3.5cm, text centered, minimum height=1.5cm, rounded corners=3pt]
+    \tikzstyle{measurement} = [rectangle, draw=orange!80, fill=yellow!15, text width=3.5cm, text centered, minimum height=1.5cm, rounded corners=3pt]
+    \tikzstyle{decision} = [diamond, draw=red!80, fill=red!15, text width=3cm, text centered, minimum height=2cm, aspect=1.5]
+    \tikzstyle{arrow} = [thick,->,>=stealth, draw=black!70]
+
+    % Nodes with better positioning
+    \node [process] (init) {\large Task Switch\\Initiated};
+    \node [measurement, right of=init, xshift=2cm] (start) {\large DWT Start\\Measurement};
+    \node [process, right of=start, xshift=2cm] (mpu) {\large MPU Region\\Configuration};
+    \node [measurement, right of=mpu, xshift=2cm] (end) {\large DWT End\\Measurement};
+
+    % Second row with better spacing
+    \node [process, below of=end, yshift=-1cm] (calc) {\large Overhead\\Calculation};
+    \node [decision, below of=calc, yshift=-1.5cm] (samples) {\large 100 Samples\\Collected?};
+    \node [process, left of=samples, xshift=-4cm] (analysis) {\large Statistical\\Analysis\\Complete};
+    \node [process, below of=samples, yshift=-1.5cm] (loop) {\large Next Context\\Switch};
+
+    % Arrows with labels
+    \draw [arrow] (init) -- (start);
+    \draw [arrow] (start) -- (mpu);
+    \draw [arrow] (mpu) -- (end);
+    \draw [arrow] (end) -- (calc);
+    \draw [arrow] (calc) -- (samples);
+    \draw [arrow] (samples) -- node[above] {\large\textbf{Yes}} (analysis);
+    \draw [arrow] (samples) -- node[right] {\large\textbf{No}} (loop);
+    \draw [arrow] (loop) -- ++(-8,0) |- (init);
+\end{tikzpicture}
+\caption{Performance Measurement Methodology Flowchart}
+\label{fig:measurement_methodology}
+\end{figure}
+
+Statistical analysis includes minimum 100 samples with outlier detection and Real-Time Transfer (RTT) logging for external analysis.
